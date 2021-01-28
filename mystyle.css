@@ -3,7 +3,7 @@
   width:100px;
 }
 img {
-
+  image-rendering: pixelated;
 }
 a:hover img {
   width:120px;
