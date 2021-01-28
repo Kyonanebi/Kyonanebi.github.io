@@ -1,16 +1,22 @@
+body {
+	background-color:#2f2f2f;
+}
 .circular {
   border-radius: 50%;
-  width:100px;
+  width:150px;
+  border: 10px solid #525252;
+  transition: border-width 0.1s linear;
 }
 img {
-  image-rendering: pixelated;
+	/*image-rendering: crisp-edges;*/
 }
 a:hover img {
-  width:120px;
+  /*width:400px;*/
+  border: 16px solid #616161;
 }
 .center {
  display: flex;
   justify-content: center;
   align-items: center;
-  height:150px;
+  height:500px;
 }
