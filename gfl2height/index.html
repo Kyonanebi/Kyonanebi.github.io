@@ -7,7 +7,8 @@
 <style>
   :root {
     --toolbar-h: 56px;
-    --sidebar-w: 260px;
+    --sidebar-full: 260px;   /* width of the left menu (edit me) */
+    --sidebar-w: var(--sidebar-full);   /* space the menu currently takes: 0 while it is hidden */
     --img-div: 6;       /* pictures are shown at 1/6 of their original height at 100% zoom (edit me) */
     --guide-y: 700px;   /* green line: distance from the top, at 100% zoom (edit me) */
     --bottom-gap: -29.2px; /* picture bottoms sit this far above the green line (edit me) */
@@ -30,12 +31,12 @@
 
   /* ---------- Fixed UI (never transformed) ---------- */
   .toolbar {
-    position: fixed; inset: 0 0 auto 0; height: var(--toolbar-h); z-index: 10;
-    display: flex; align-items: center; gap: 14px; padding: 0 16px;
+    position: fixed; inset: 0 0 auto 0; min-height: 56px; z-index: 10;      /* grows when the items wrap to more lines */
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 16px;
     background: var(--panel); border-bottom: 1px solid #2a2d38;
-    overflow-x: auto; white-space: nowrap;
   }
   .toolbar label { color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .toolbar > * { white-space: nowrap; }
   .toolbar select, .toolbar button {
     background: #262935; color: var(--text); border: 1px solid #343847;
     border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer;
@@ -49,9 +50,23 @@
 
   /* ---------- Left sidebar: categories + pictures ---------- */
   .sidebar {
-    position: fixed; top: var(--toolbar-h); bottom: 0; left: 0; width: var(--sidebar-w); z-index: 9;
+    position: fixed; top: var(--toolbar-h); bottom: 0; left: 0; width: var(--sidebar-full); z-index: 9;
     background: var(--panel); border-right: 1px solid #2a2d38; overflow-y: auto; padding: 10px;
   }
+  body.sidebar-hidden { --sidebar-w: 0px; }
+  body.sidebar-hidden .sidebar { transform: translateX(-100%); visibility: hidden; }
+
+  /* Arrow tab on the edge of the left menu: hides / shows it */
+  .sidebar-tab {
+    position: fixed; top: calc(var(--toolbar-h) + 12px); left: var(--sidebar-w); z-index: 11;
+    width: 22px; height: 44px; padding: 0; cursor: pointer;
+    background: var(--panel); color: var(--muted); border: 1px solid #2a2d38; border-left: 0;
+    border-radius: 0 8px 8px 0; font-size: 12px; line-height: 1;
+  }
+  .sidebar-tab:hover { color: var(--text); border-color: #4a5068; }
+  .sidebar-tab span { display: inline-block; transition: transform .15s; }
+  body.sidebar-hidden .sidebar-tab span { transform: rotate(180deg); }
+
   .side-actions { display: flex; gap: 6px; margin-bottom: 10px; }
   .side-actions button {
     flex: 1; background: #262935; color: var(--text); border: 1px solid #343847;
@@ -186,6 +201,8 @@
   <div id="groups"></div>
 </aside>
 
+<button class="sidebar-tab" id="sidebarTab" aria-expanded="true" title="Hide / show the list"><span>◀</span></button>
+
 <div class="viewport" id="viewport">
   <div class="track" id="track"></div>
 </div>
@@ -288,14 +305,42 @@ viewport.addEventListener("wheel", (e) => {
 /* Drag with pointer events (mouse, touch, pen) + a bit of inertia */
 let dragging = false, lastX = 0, lastY = 0, lastT = 0, vx = 0, vy = 0, inertiaId = 0;
 
+/* Pointers currently down (mouse button, fingers, pen). One pointer drags; two fingers pinch-zoom (and pan). */
+const pointers = new Map();                      // pointerId -> {x, y}
+let pinch = null;                                // while two fingers are down: start distance, start zoom, world point under their midpoint
+
+function startDrag(px, py) {
+  dragging = true; lastX = px; lastY = py; lastT = performance.now(); vx = vy = 0;
+  viewport.classList.add("dragging");
+}
+function beginPinch() {
+  dragging = false; viewport.classList.remove("dragging");
+  const [a, b] = [...pointers.values()];
+  const rect = viewport.getBoundingClientRect();
+  const mx = (a.x + b.x) / 2 - rect.left, my = (a.y + b.y) / 2 - rect.top;
+  pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, z, wx: (mx - x) / z, wy: (my - y) / z };
+}
+
 viewport.addEventListener("pointerdown", (e) => {
   if (e.button !== 0) return;
-  dragging = true; atHome = false; stopInertia();
-  lastX = e.clientX; lastY = e.clientY; lastT = performance.now(); vx = vy = 0;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   viewport.setPointerCapture(e.pointerId);
-  viewport.classList.add("dragging");
+  atHome = false; stopInertia();
+  if (pointers.size === 1) startDrag(e.clientX, e.clientY);
+  else if (pointers.size === 2) beginPinch();
 });
 viewport.addEventListener("pointermove", (e) => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && pointers.size >= 2) {             // pinch: zoom follows the finger distance, centered between the fingers
+    const [a, b] = [...pointers.values()];
+    const rect = viewport.getBoundingClientRect();
+    const mx = (a.x + b.x) / 2 - rect.left, my = (a.y + b.y) / 2 - rect.top;
+    const nz = Math.min(MAX_Z, Math.max(MIN_Z, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.dist));
+    z = nz; x = mx - pinch.wx * nz; y = my - pinch.wy * nz;   // keeps the same picture point under the fingers
+    schedule();
+    return;
+  }
   if (!dragging) return;
   const now = performance.now(), dt = Math.max(1, now - lastT);
   const dx = e.clientX - lastX, dy = e.clientY - lastY;
@@ -320,12 +365,30 @@ function endDrag() {
   inertiaId = requestAnimationFrame(step);
 }
 function stopInertia() { if (inertiaId) cancelAnimationFrame(inertiaId); inertiaId = 0; }
-viewport.addEventListener("pointerup", endDrag);
-viewport.addEventListener("pointercancel", endDrag);
+function endPointer(e) {
+  if (!pointers.delete(e.pointerId)) return;
+  if (pinch) {
+    if (pointers.size < 2) {
+      pinch = null;
+      if (pointers.size === 1) { const [p] = [...pointers.values()]; startDrag(p.x, p.y); }   // keep panning with the remaining finger
+    }
+    return;
+  }
+  endDrag();
+}
+viewport.addEventListener("pointerup", endPointer);
+viewport.addEventListener("pointercancel", endPointer);
 
 function resetView() { z = 1; x = 0; y = 0; atHome = true; stopInertia(); schedule(); }
 viewport.addEventListener("dblclick", resetView);
 document.getElementById("reset").addEventListener("click", resetView);
+
+/* The toolbar wraps onto more lines on narrow screens: keep everything below it in step with its real height */
+const toolbarEl = document.querySelector(".toolbar");
+new ResizeObserver(() => {
+  document.documentElement.style.setProperty("--toolbar-h", toolbarEl.offsetHeight + "px");
+  schedule();
+}).observe(toolbarEl);
 
 new ResizeObserver(schedule).observe(track);                   // re-clamp when filters change width
 window.addEventListener("resize", schedule);
@@ -464,6 +527,14 @@ document.getElementById("toggleOffsets").addEventListener("click", updateLabels)
 updateLabels();
 toggle("toggleCaptions", "hide-captions", true);
 toggle("toggleHeight", "hide-height", true);
+
+/* Arrow tab: hide / show the left menu (the picture area then takes the whole width) */
+const sidebarTab = document.getElementById("sidebarTab");
+sidebarTab.addEventListener("click", () => {
+  const hidden = document.body.classList.toggle("sidebar-hidden");
+  sidebarTab.setAttribute("aria-expanded", !hidden);
+  schedule();                                    // picture area changed width: re-clamp the view
+});
 
 applySort();
 ready = true;
