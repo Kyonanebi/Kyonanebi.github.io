@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zoom Gallery</title>
+<style>
+  :root {
+    --toolbar-h: 56px;
+    --sidebar-w: 260px;
+    --img-div: 6;       /* pictures are shown at 1/6 of their original height at 100% zoom (edit me) */
+    --guide-y: 700px;   /* green line: distance from the top, at 100% zoom (edit me) */
+    --bottom-gap: -29.2px; /* picture bottoms sit this far above the green line (edit me) */
+    --caption-gap: 20px; /* captions sit this far below the green line, constant on screen (edit me) */
+    --grid-px: 58.2px; /* one grid cell, in pixels at 100% zoom (edit me) */
+    --grid-cm: 20;      /* what one grid cell stands for, in cm: used by the cursor readout (edit me) */
+  --px-per-cm: calc(var(--grid-px) / var(--grid-cm));   /* pixels per cm at 100% zoom */
+  --height-line-color: rgba(255, 140, 0, .6);   /* half-transparent orange height marker (edit me) */
+  --height-line-width: 70%;                     /* of the picture's width (edit me) */
+  --height-text-color: rgb(255, 140, 0);        /* orange height label above the line (edit me) */
+    --bg: #14151a;
+    --panel: #1d1f27;
+    --text: #e8e9ee;
+    --muted: #9a9cab;
+    --accent: #6ea8ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+
+  /* ---------- Fixed UI (never transformed) ---------- */
+  .toolbar {
+    position: fixed; inset: 0 0 auto 0; height: var(--toolbar-h); z-index: 10;
+    display: flex; align-items: center; gap: 14px; padding: 0 16px;
+    background: var(--panel); border-bottom: 1px solid #2a2d38;
+    overflow-x: auto; white-space: nowrap;
+  }
+  .toolbar label { color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .toolbar select, .toolbar button {
+    background: #262935; color: var(--text); border: 1px solid #343847;
+    border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer;
+  }
+  .toolbar button:hover, .toolbar select:hover { border-color: #4a5068; }
+  .toolbar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #0b1220; }
+  .chips { display: flex; gap: 6px; }
+  .spacer { flex: 1; }
+  .readout { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4.5ch; text-align: right; }
+  #cursorH { min-width: 12ch; }
+
+  /* ---------- Left sidebar: categories + pictures ---------- */
+  .sidebar {
+    position: fixed; top: var(--toolbar-h); bottom: 0; left: 0; width: var(--sidebar-w); z-index: 9;
+    background: var(--panel); border-right: 1px solid #2a2d38; overflow-y: auto; padding: 10px;
+  }
+  .side-actions { display: flex; gap: 6px; margin-bottom: 10px; }
+  .side-actions button {
+    flex: 1; background: #262935; color: var(--text); border: 1px solid #343847;
+    border-radius: 6px; padding: 5px 8px; font: inherit; cursor: pointer;
+  }
+  .side-actions button:hover { border-color: #4a5068; }
+  .group { margin-bottom: 6px; }
+  .cat-row { display: flex; align-items: center; gap: 4px; padding: 4px 2px; font-weight: 600; }
+  .cat-row label { display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; }
+  .count { color: var(--muted); font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .twisty {
+    background: none; border: 0; color: var(--muted); cursor: pointer; width: 20px; padding: 0;
+    font-size: 14px; transition: transform .15s;
+  }
+  .group.collapsed .twisty { transform: rotate(-90deg); }
+  .group.collapsed .items { display: none; }
+  .items { margin-left: 22px; border-left: 1px solid #2a2d38; padding-left: 8px; }
+  .item-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+  .item-row .name {
+    flex: 1; text-align: left; background: none; border: 0; color: var(--text);
+    font: inherit; cursor: pointer; padding: 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .item-row .name:hover { color: var(--accent); }
+  .item-row.off .name { opacity: .4; }
+  .sidebar input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+
+  /* ---------- Viewport + zoomable world ---------- */
+  .viewport {
+    position: fixed; inset: var(--toolbar-h) 0 0 var(--sidebar-w); overflow: hidden;
+    --zoom: 1;                                   /* 1 = 100%, 4 = 400% (set from JS) */
+    cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .viewport.dragging { cursor: grabbing; }
+
+  .track {
+    position: absolute; left: 0; top: 0; z-index: 1;
+    --pad: 0px;                                  /* extra room below for shifted pictures */
+    --cap-room: calc(64px + max(0px, var(--bottom-gap)) * var(--zoom));   /* room below for the captions */
+    height: calc((var(--guide-y) - var(--bottom-gap) + var(--top-extra, 0) * 1px) * var(--zoom) + var(--pad) + var(--cap-room)); width: max-content;
+    display: flex; align-items: flex-end; gap: 0; padding: 0 0 calc(var(--pad) + var(--cap-room));   /* bottoms aligned */
+    /* only a whole-pixel translate is applied (no scale), so images are re-rendered sharp at every zoom */
+  }
+
+  .tile { position: relative; z-index: 1; flex: none; width: max-content; background: transparent;
+          --h: calc(var(--nh, 0) * 1px * var(--zoom) / var(--img-div));   /* this picture's height at the current zoom */
+          height: var(--h); top: 0; }
+  .tile.hidden { display: none; }
+  body.use-offsets .track { --pad: calc(var(--max-off, 0) * var(--px-per-cm) * var(--zoom)); }   /* offsets are in cm */
+  body.use-offsets .tile  { top: calc(var(--offset, 0) * var(--px-per-cm) * var(--zoom)); }   /* offset (cm) -> px */
+  .tile img { height: var(--h); width: auto; display: block; pointer-events: none; }
+
+  /* Grid fills the whole viewport behind the pictures and follows pan and zoom: cell size scales with the pictures,
+     line thickness stays constant on screen */
+  .grid {
+    position: absolute; inset: 0; pointer-events: none; display: none; z-index: 0;
+    --line: 1.5px;                              /* constant: nothing scales it any more */
+    --cell: calc(var(--grid-px) * var(--zoom));    /* cells grow with the pictures */
+    --grid-color: rgba(255, 255, 255, .35);
+    --guide-color: rgba(60, 220, 100, .9);
+    background-image:
+      linear-gradient(to right,  var(--grid-color) var(--line), transparent 0),
+      linear-gradient(to bottom, var(--grid-color) var(--line), transparent 0);
+    background-size: var(--cell) var(--cell);
+    /* horizontal lines grow up and down from the green guide line; vertical ones from the left edge of the strip */
+    background-position: var(--gx, 0px) calc(var(--gy, 0px) + (var(--guide-y) + var(--top-extra, 0) * 1px) * var(--zoom));
+  }
+  body.show-grid .grid { display: block; }
+
+  /* Green guide line, part of the grid: moves and scales with the pictures, constant thickness */
+  .guide {
+    position: absolute; left: 0; right: 0;
+    top: calc(var(--gy, 0px) + (var(--guide-y) + var(--top-extra, 0) * 1px) * var(--zoom));
+    height: var(--line); background: var(--guide-color);
+  }
+
+  /* Caption: horizontally centered on its picture, vertically always --caption-gap below the green line */
+  .caption {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    top: calc(100% + var(--bottom-gap) * var(--zoom) + var(--caption-gap));   /* picture bottom -> green line -> 10px lower */
+    pointer-events: none; text-align: center;
+    padding: 6px 10px; border-radius: 6px;
+    background: rgba(0, 0, 0, .55); color: #fff; font-size: 13px; white-space: nowrap;
+  }
+  /* Height marker: half-transparent orange line fixed on its picture at `height` cm. With Shoes on, the picture (and the
+     line with it) moves down by `offset`, so the line sits at (height - offset) cm above the green line. */
+  .height-line {
+    position: absolute; left: 50%; width: var(--height-line-width); pointer-events: none;
+    height: 2px; background: var(--height-line-color);                    /* constant thickness on screen */
+    transform: translate(-50%, -50%);
+    top: calc(100% + (var(--bottom-gap) - var(--height-cm, 0) * var(--px-per-cm)) * var(--zoom));
+  }
+  .height-label {                                                        /* sits above the line, right-aligned to its right end */
+    position: absolute; right: 0; bottom: 100%; margin-bottom: 3px;
+    color: var(--height-text-color); font-size: 13px; font-weight: 600;
+    white-space: nowrap; font-variant-numeric: tabular-nums;            /* constant size on screen */
+  }
+  .caption small { color: #c3c6d4; display: block; font-size: 11px; }
+  body.use-offsets .caption { top: calc(100% + (var(--bottom-gap) - var(--offset, 0) * var(--px-per-cm)) * var(--zoom) + var(--caption-gap)); }   /* stays put when pictures are offset */
+  body.hide-captions .caption { display: none; }
+  body.hide-height .height-line { display: none; }   /* hides the orange line and its label */
+  body.hide-captions .track { --cap-room: 0px; }
+</style>
+</head>
+<body class="show-grid use-offsets">
+
+<div class="toolbar">
+  <label>Sort
+    <select id="sort">
+      <option value="height">Height</option>
+      <option value="name">Name</option>
+    </select>
+  </label>
+  <select id="sortDir" aria-label="Sort direction">
+    <option value="desc">Descending</option>
+    <option value="asc">Ascending</option>
+  </select>
+  <span class="spacer"></span>
+  <button id="toggleOffsets" aria-pressed="true">Shoes</button>
+  <button id="toggleGrid" aria-pressed="true">Grid</button>
+  <button id="toggleHeight" aria-pressed="true">Height</button>
+  <button id="toggleCaptions" aria-pressed="true">Captions</button>
+  <span class="readout" id="cursorH" title="Distance of the cursor from the green line, in cm (one grid cell = --grid-cm)">–</span>
+  <button id="reset">Reset view</button>
+  <span class="readout" id="readout">100%</span>
+</div>
+
+<aside class="sidebar" id="sidebar">
+  <div class="side-actions">
+    <button id="showAll">Show all</button>
+    <button id="hideAll">Hide all</button>
+  </div>
+  <div id="groups"></div>
+</aside>
+
+<div class="viewport" id="viewport">
+  <div class="track" id="track"></div>
+</div>
+
+<script>
+/* ============ 1. DATA ============
+   One entry per picture. `src` is the image path or URL.
+   Widths are taken automatically from each image's real proportions.
+   `offset` = cm the picture moves down when the Shoes toggle is on (converted with --px-per-cm); the orange line and label then show height - offset.
+   `height` = real height in cm: sorting + the orange marker line (height x pixels-per-cm above the green line). */
+const ITEMS = [
+  { src: "img/Igla_main_side.png",       name: "Igla",       cat: "Igla",    offset: 7.5, height: 182 },
+  { src: "img/Florence_pajama_calibration.png",       name: "Calibration",       cat: "Calibration",    offset: 0, height: 200 },
+  { src: "img/Florence_pajama.png",       name: "Florence",       cat: "Florence",    offset: 0, height: 136 },
+  //{ src: "img/tall test.png",       name: "Test",       cat: "Calibration",    offset: 45, height: 182 },
+].map((it, i) => ({ ...it, id: i }));
+
+/* ============ 2. BUILD DOM (once) ============ */
+const track    = document.getElementById("track");
+const viewport = document.getElementById("viewport");
+const readout  = document.getElementById("readout");
+
+var ready = false;                              // set once the page is fully built
+const tiles = new Map();
+for (const it of ITEMS) {
+  const el = document.createElement("div");
+  el.className = "tile";
+  el.style.setProperty("--offset", it.offset || 0);
+  el.style.setProperty("--height-cm", it.height || 0);
+  el.innerHTML = `
+    <img src="${it.src}" alt="${it.name}" draggable="false" decoding="async">
+    <div class="height-line"><span class="height-label">${Math.round(it.height)} cm</span></div>
+    <div class="caption">${it.name}<small>${it.cat}</small></div>`;
+  const img = el.querySelector("img");
+  const setNH = () => { el.style.setProperty("--nh", img.naturalHeight); it.nh = img.naturalHeight; if (ready) updateExtent(); };
+  img.complete && img.naturalHeight ? setNH() : img.addEventListener("load", setNH);
+  track.appendChild(el);
+  tiles.set(it.id, el);
+}
+const grid = document.createElement("div");   // one grid layer covering the whole viewport, behind the strip
+grid.className = "grid";
+grid.innerHTML = '<div class="guide"></div>';
+viewport.insertBefore(grid, track);
+
+/* ============ 3. ZOOM + PAN ============ */
+const MIN_Z = 1, MAX_Z = 4;
+let z = 1, x = 0, y = 0;
+let raf = 0;
+let guideY = 0;          // green line position (px at 100%), read from CSS
+let gridPx = 58.25, gridCm = 20;   // one grid cell in px (at 100%) and in cm, read from CSS
+let cursorY = null;      // cursor y inside the viewport, null when outside
+let extra = 0;          // px (at 100%) the strip reaches above the home view; home view hides it
+let atHome = true;       // true until the user drags or zooms
+
+function clamp() {
+  const W = viewport.clientWidth,  H = viewport.clientHeight;
+  const cw = track.offsetWidth, ch = track.offsetHeight;   // already at current zoom
+  x = cw <= W ? 0 : Math.min(0, Math.max(W - cw, x));
+  if (atHome) y = -extra * z;                              // home view: green line where it always was
+  const yMin = Math.min(H - ch, -extra * z);               // home position is always reachable
+  y = Math.min(0, Math.max(yMin, y));                      // y = 0 shows the very top of tall pictures
+}
+
+function render() {
+  raf = 0;
+  viewport.style.setProperty("--zoom", z);                    // resizes images + grid through CSS
+  clamp();                                                    // after the zoom is applied, so sizes are current
+  const rx = Math.round(x), ry = Math.round(y);
+  track.style.transform = `translate(${rx}px, ${ry}px)`;
+  viewport.style.setProperty("--gx", rx + "px");           // grid follows the strip
+  viewport.style.setProperty("--gy", ry + "px");
+  readout.textContent = Math.round(z * 100) + "%";
+  updateCursorReadout();                                      // keeps it right while panning/zooming under a still cursor
+}
+/* Cursor height above the green line in cm (0 at or below it): the first grid line away from it reads one --grid-cm (20 cm), at any zoom */
+const cursorEl = document.getElementById("cursorH");
+function updateCursorReadout() {
+  if (cursorY === null) { cursorEl.textContent = "–"; return; }
+  const lineScreen = y + (guideY + extra) * z;                // green line position inside the viewport
+  const cm = Math.max(0, lineScreen - cursorY) / z / gridPx * gridCm;   // screen px -> px at 100% -> grid cells -> cm; below the line stays 0
+  cursorEl.textContent = cm.toFixed(1) + " cm";
+}
+viewport.addEventListener("pointermove", (e) => { cursorY = e.clientY - viewport.getBoundingClientRect().top; updateCursorReadout(); });
+viewport.addEventListener("pointerleave", () => { cursorY = null; updateCursorReadout(); });
+function schedule() { if (!raf) raf = requestAnimationFrame(render); }
+
+viewport.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const rect = viewport.getBoundingClientRect();
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  const nz = Math.min(MAX_Z, Math.max(MIN_Z, z * Math.exp(-e.deltaY * 0.0015)));
+  const wx = (px - x) / z, wy = (py - y) / z;                  // world point under cursor
+  x = px - wx * nz; y = py - wy * nz;                          // keep it under the cursor
+  z = nz;
+  atHome = false;
+  stopInertia();
+  schedule();
+}, { passive: false });
+
+/* Drag with pointer events (mouse, touch, pen) + a bit of inertia */
+let dragging = false, lastX = 0, lastY = 0, lastT = 0, vx = 0, vy = 0, inertiaId = 0;
+
+viewport.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  dragging = true; atHome = false; stopInertia();
+  lastX = e.clientX; lastY = e.clientY; lastT = performance.now(); vx = vy = 0;
+  viewport.setPointerCapture(e.pointerId);
+  viewport.classList.add("dragging");
+});
+viewport.addEventListener("pointermove", (e) => {
+  if (!dragging) return;
+  const now = performance.now(), dt = Math.max(1, now - lastT);
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  x += dx; y += dy;
+  vx = dx / dt; vy = dy / dt;
+  lastX = e.clientX; lastY = e.clientY; lastT = now;
+  schedule();
+});
+function endDrag() {
+  if (!dragging) return;
+  dragging = false;
+  viewport.classList.remove("dragging");
+  if (performance.now() - lastT > 80) return;                  // paused before release: no fling
+  let prev = performance.now();
+  const step = (t) => {
+    const dt = t - prev; prev = t;
+    x += vx * dt; y += vy * dt;
+    vx *= 0.95; vy *= 0.95;
+    render();
+    inertiaId = (Math.abs(vx) > 0.02 || Math.abs(vy) > 0.02) ? requestAnimationFrame(step) : 0;
+  };
+  inertiaId = requestAnimationFrame(step);
+}
+function stopInertia() { if (inertiaId) cancelAnimationFrame(inertiaId); inertiaId = 0; }
+viewport.addEventListener("pointerup", endDrag);
+viewport.addEventListener("pointercancel", endDrag);
+
+function resetView() { z = 1; x = 0; y = 0; atHome = true; stopInertia(); schedule(); }
+viewport.addEventListener("dblclick", resetView);
+document.getElementById("reset").addEventListener("click", resetView);
+
+new ResizeObserver(schedule).observe(track);                   // re-clamp when filters change width
+window.addEventListener("resize", schedule);
+
+/* Room above the green line: if a visible picture is taller than the space above its bottom edge, the strip is
+   extended upward so the top stays reachable by dragging. The home view hides that part, so everything
+   (green line included) starts exactly where it would without the extension. */
+function updateExtent() {
+  const cs = getComputedStyle(document.documentElement);
+  const num = (n) => parseFloat(cs.getPropertyValue(n)) || 0;
+  const div = num("--img-div") || 1;
+  const tallest = Math.max(0, ...ITEMS.filter(i => !off.has(i.id)).map(i => (i.nh || 0) / div));
+  guideY = num("--guide-y");
+  gridPx = num("--grid-px") || 58.25;
+  gridCm = num("--grid-cm") || 20;
+  extra = Math.max(0, tallest - (guideY - num("--bottom-gap")));
+  viewport.style.setProperty("--top-extra", extra);
+  schedule();
+}
+
+/* ============ 4. SORT + FILTER (toggle, don't rebuild) ============ */
+const sortSel = document.getElementById("sort");
+const sortDirSel = document.getElementById("sortDir");
+
+function applySort() {
+  const cmp = {                                   // ascending comparators (small to large, A to Z)
+    "height": (a, b) => a.height - b.height,
+    "name":   (a, b) => a.name.localeCompare(b.name),
+  }[sortSel.value];
+  const dir = sortDirSel.value === "desc" ? -1 : 1;
+  [...ITEMS].sort((a, b) => dir * cmp(a, b)).forEach((it, i) => { tiles.get(it.id).style.order = i; });
+  schedule();
+}
+sortSel.addEventListener("change", applySort);
+sortDirSel.addEventListener("change", applySort);
+
+/* ---- Sidebar: categories with pictures inside, each with an on/off toggle ---- */
+const off = new Set();                          // ids of pictures currently switched off
+const groupsEl = document.getElementById("groups");
+const CATS = [...new Set(ITEMS.map(i => i.cat))];
+const catUI = new Map(), itemUI = new Map();
+
+for (const cat of CATS) {
+  const items = ITEMS.filter(i => i.cat === cat).sort((a, b) => a.name.localeCompare(b.name));
+  const group = document.createElement("div");
+  group.className = "group";
+  group.innerHTML = `
+    <div class="cat-row">
+      <button class="twisty" aria-label="Collapse or expand">▾</button>
+      <label><input type="checkbox" class="cat-box"><span>${cat}</span></label>
+      <span class="count"></span>
+    </div>
+    <div class="items"></div>`;
+  const box = group.querySelector(".cat-box");
+  const count = group.querySelector(".count");
+  const list = group.querySelector(".items");
+
+  group.querySelector(".twisty").addEventListener("click", () => group.classList.toggle("collapsed"));
+  box.addEventListener("change", () => {        // category toggle switches all its pictures
+    for (const it of items) box.checked ? off.delete(it.id) : off.add(it.id);
+    applyFilter();
+  });
+
+  for (const it of items) {
+    const row = document.createElement("div");
+    row.className = "item-row";
+    row.innerHTML = `<input type="checkbox"><button class="name">${it.name}</button>`;
+    const cb = row.querySelector("input");
+    cb.addEventListener("change", () => { cb.checked ? off.delete(it.id) : off.add(it.id); applyFilter(); });
+    row.querySelector(".name").addEventListener("click", () => panTo(it.id));
+    list.appendChild(row);
+    itemUI.set(it.id, { row, cb });
+  }
+  groupsEl.appendChild(group);
+  catUI.set(cat, { box, count, items });
+}
+
+function applyFilter() {
+  for (const it of ITEMS) {
+    const hidden = off.has(it.id);
+    tiles.get(it.id).classList.toggle("hidden", hidden);
+    const ui = itemUI.get(it.id);
+    ui.cb.checked = !hidden;
+    ui.row.classList.toggle("off", hidden);
+  }
+  for (const [, ui] of catUI) {                 // category box: checked / unchecked / indeterminate
+    const on = ui.items.filter(i => !off.has(i.id)).length;
+    ui.box.checked = on === ui.items.length;
+    ui.box.indeterminate = on > 0 && on < ui.items.length;
+    ui.count.textContent = `${on}/${ui.items.length}`;
+  }
+  // room below the strip for the largest offset among visible pictures
+  track.style.setProperty("--max-off", Math.max(0, ...ITEMS.filter(i => !off.has(i.id)).map(i => i.offset || 0)));
+  updateExtent();
+}
+document.getElementById("showAll").addEventListener("click", () => { off.clear(); applyFilter(); });
+document.getElementById("hideAll").addEventListener("click", () => { ITEMS.forEach(i => off.add(i.id)); applyFilter(); });
+
+/* Click a picture name in the sidebar: slide the view so that picture is centered */
+function panTo(id) {
+  const tile = tiles.get(id);
+  if (off.has(id)) return;
+  stopInertia();
+  const W = viewport.clientWidth;
+  const tx = W / 2 - (tile.offsetLeft + tile.offsetWidth / 2);
+  const x0 = x, t0 = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / 350), e = 1 - Math.pow(1 - k, 3);
+    x = x0 + (tx - x0) * e;
+    render();
+    if (k < 1) inertiaId = requestAnimationFrame(step); else inertiaId = 0;
+  };
+  inertiaId = requestAnimationFrame(step);
+}
+
+/* ============ 5. TOGGLES ============ */
+function toggle(btnId, cls, invert = false) {
+  const btn = document.getElementById(btnId);
+  btn.addEventListener("click", () => {
+    const on = document.body.classList.toggle(cls);
+    btn.setAttribute("aria-pressed", invert ? !on : on);
+  });
+}
+toggle("toggleGrid", "show-grid");
+toggle("toggleOffsets", "use-offsets");
+
+/* Orange label: height, or height - offset while Shoes is on */
+const fmtCm = (v) => Math.round(v) + " cm";   // always a whole number
+function updateLabels() {
+  const shoes = document.body.classList.contains("use-offsets");
+  for (const it of ITEMS) {
+    tiles.get(it.id).querySelector(".height-label").textContent = fmtCm(it.height - (shoes ? (it.offset || 0) : 0));
+  }
+}
+document.getElementById("toggleOffsets").addEventListener("click", updateLabels);   // runs after the toggle has flipped the class
+updateLabels();
+toggle("toggleCaptions", "hide-captions", true);
+toggle("toggleHeight", "hide-height", true);
+
+applySort();
+ready = true;
+applyFilter();
+render();
+</script>
+</body>
+</html>
