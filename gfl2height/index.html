@@ -36,6 +36,12 @@
     background: var(--panel); border-bottom: 1px solid #2a2d38;
     overflow-x: auto; white-space: nowrap;
   }
+  /* The toolbar has three groups: sorting / the four toggle buttons / the rest. On a wide screen they sit on one line
+     (groups are transparent); when that line does not fit, JS adds .stacked and each group becomes its own row. */
+  .tb-group { display: contents; }
+  .toolbar.stacked { height: auto; flex-direction: column; align-items: flex-start; gap: 8px; padding: 8px 16px; overflow-x: hidden; }
+  .toolbar.stacked .tb-group { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; white-space: nowrap; }
+  .toolbar.stacked .spacer { display: none; }
   .toolbar label { color: var(--muted); display: flex; align-items: center; gap: 6px; }
   .toolbar select, .toolbar button {
     background: #262935; color: var(--text); border: 1px solid #343847;
@@ -175,24 +181,30 @@
 <body class="show-grid use-offsets">
 
 <div class="toolbar">
-  <label>Sort
-    <select id="sort">
-      <option value="height">Height</option>
-      <option value="name">Name</option>
+  <div class="tb-group">
+    <label>Sort
+      <select id="sort">
+        <option value="height">Height</option>
+        <option value="name">Name</option>
+      </select>
+    </label>
+    <select id="sortDir" aria-label="Sort direction">
+      <option value="desc">Descending</option>
+      <option value="asc">Ascending</option>
     </select>
-  </label>
-  <select id="sortDir" aria-label="Sort direction">
-    <option value="desc">Descending</option>
-    <option value="asc">Ascending</option>
-  </select>
+  </div>
   <span class="spacer"></span>
-  <button id="toggleOffsets" aria-pressed="true">Shoes</button>
-  <button id="toggleGrid" aria-pressed="true">Grid</button>
-  <button id="toggleHeight" aria-pressed="true">Height</button>
-  <button id="toggleCaptions" aria-pressed="true">Captions</button>
-  <span class="readout" id="cursorH" title="Distance of the cursor from the green line, in cm (one grid cell = --grid-cm)">–</span>
-  <button id="reset">Reset view</button>
-  <span class="readout" id="readout">100%</span>
+  <div class="tb-group">
+    <button id="toggleOffsets" aria-pressed="true">Shoes</button>
+    <button id="toggleGrid" aria-pressed="true">Grid</button>
+    <button id="toggleHeight" aria-pressed="true">Height</button>
+    <button id="toggleCaptions" aria-pressed="true">Captions</button>
+  </div>
+  <div class="tb-group">
+    <span class="readout" id="cursorH" title="Distance of the cursor from the green line, in cm (one grid cell = --grid-cm)">–</span>
+    <button id="reset">Reset view</button>
+    <span class="readout" id="readout">100%</span>
+  </div>
 </div>
 
 <aside class="sidebar" id="sidebar">
@@ -410,9 +422,12 @@ function updateExtent() {
 const sortSel = document.getElementById("sort");
 const sortDirSel = document.getElementById("sortDir");
 
+/* Height as shown in the orange label: height, or height - offset while Shoes is on. Height sorting uses this. */
+const effHeight = (it) => it.height - (document.body.classList.contains("use-offsets") ? (it.offset || 0) : 0);
+
 function applySort() {
   const cmp = {                                   // ascending comparators (small to large, A to Z)
-    "height": (a, b) => a.height - b.height,
+    "height": (a, b) => effHeight(a) - effHeight(b),
     "name":   (a, b) => a.name.localeCompare(b.name),
   }[sortSel.value];
   const dir = sortDirSel.value === "desc" ? -1 : 1;
@@ -520,7 +535,7 @@ function updateLabels() {
     tiles.get(it.id).querySelector(".height-label").textContent = fmtCm(it.height - (shoes ? (it.offset || 0) : 0));
   }
 }
-document.getElementById("toggleOffsets").addEventListener("click", updateLabels);   // runs after the toggle has flipped the class
+document.getElementById("toggleOffsets").addEventListener("click", () => { updateLabels(); applySort(); });   // runs after the toggle has flipped the class: refresh labels and re-sort
 updateLabels();
 toggle("toggleCaptions", "hide-captions", true);
 toggle("toggleHeight", "hide-height", true);
@@ -532,6 +547,20 @@ sidebarTab.addEventListener("click", () => {
   sidebarTab.setAttribute("aria-expanded", !hidden);
   schedule();                                    // picture area changed width: re-clamp the view
 });
+
+/* Top menu: one line if it fits, otherwise three rows (sort / toggle buttons / rest). Everything below it follows its height. */
+const toolbarEl = document.querySelector(".toolbar");
+function fitToolbar() {
+  toolbarEl.classList.remove("stacked");
+  document.documentElement.style.removeProperty("--toolbar-h");              // default one-line height
+  const tooWide = toolbarEl.scrollWidth > toolbarEl.clientWidth;
+  toolbarEl.classList.toggle("stacked", tooWide);
+  if (tooWide) document.documentElement.style.setProperty("--toolbar-h", toolbarEl.offsetHeight + "px");
+  schedule();
+}
+window.addEventListener("resize", fitToolbar);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitToolbar);
+fitToolbar();
 
 applySort();
 ready = true;
