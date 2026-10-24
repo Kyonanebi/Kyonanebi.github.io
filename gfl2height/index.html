@@ -12,7 +12,7 @@
     --img-div: 6;       /* pictures are shown at 1/6 of their original height at 100% zoom (edit me) */
     --guide-y: 700px;   /* green line: distance from the top, at 100% zoom (edit me) */
     --bottom-gap: -29.2px; /* picture bottoms sit this far above the green line (edit me) */
-    --caption-gap: 20px; /* captions sit this far below the green line, constant on screen (edit me) */
+    --caption-gap: 20px; /* captions sit this far below the green line, at 100% zoom: it grows and shrinks with the zoom (edit me) */
     --grid-px: 58.2px; /* one grid cell, in pixels at 100% zoom (edit me) */
     --grid-cm: 20;      /* what one grid cell stands for, in cm: used by the cursor readout (edit me) */
   --px-per-cm: calc(var(--grid-px) / var(--grid-cm));   /* pixels per cm at 100% zoom */
@@ -31,12 +31,12 @@
 
   /* ---------- Fixed UI (never transformed) ---------- */
   .toolbar {
-    position: fixed; inset: 0 0 auto 0; min-height: 56px; z-index: 10;      /* grows when the items wrap to more lines */
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 16px;
+    position: fixed; inset: 0 0 auto 0; height: var(--toolbar-h); z-index: 10;
+    display: flex; align-items: center; gap: 14px; padding: 0 16px;
     background: var(--panel); border-bottom: 1px solid #2a2d38;
+    overflow-x: auto; white-space: nowrap;
   }
   .toolbar label { color: var(--muted); display: flex; align-items: center; gap: 6px; }
-  .toolbar > * { white-space: nowrap; }
   .toolbar select, .toolbar button {
     background: #262935; color: var(--text); border: 1px solid #343847;
     border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer;
@@ -142,13 +142,15 @@
     height: var(--line); background: var(--guide-color);
   }
 
-  /* Caption: horizontally centered on its picture, vertically always --caption-gap below the green line */
+  /* Caption: horizontally centered on its picture, vertically --caption-gap (scaled with the zoom) below the green line */
   .caption {
     position: absolute; left: 50%; transform: translateX(-50%);
-    top: calc(100% + var(--bottom-gap) * var(--zoom) + var(--caption-gap));   /* picture bottom -> green line -> 10px lower */
+    top: calc(100% + (var(--bottom-gap) + var(--caption-gap)) * var(--zoom));   /* picture bottom -> green line -> 10px lower */
     pointer-events: none; text-align: center;
+    width: max-content; max-width: 100%;                                  /* never wider than its picture; long text wraps */
+    white-space: normal; overflow-wrap: anywhere;
     padding: 6px 10px; border-radius: 6px;
-    background: rgba(0, 0, 0, .55); color: #fff; font-size: 13px; white-space: nowrap;
+    background: rgba(0, 0, 0, .55); color: #fff; font-size: 13px; font-weight: 600;   /* main line: category */
   }
   /* Height marker: half-transparent orange line fixed on its picture at `height` cm. With Shoes on, the picture (and the
      line with it) moves down by `offset`, so the line sits at (height - offset) cm above the green line. */
@@ -163,8 +165,8 @@
     color: var(--height-text-color); font-size: 13px; font-weight: 600;
     white-space: nowrap; font-variant-numeric: tabular-nums;            /* constant size on screen */
   }
-  .caption small { color: #c3c6d4; display: block; font-size: 11px; }
-  body.use-offsets .caption { top: calc(100% + (var(--bottom-gap) - var(--offset, 0) * var(--px-per-cm)) * var(--zoom) + var(--caption-gap)); }   /* stays put when pictures are offset */
+  .caption small { color: #c3c6d4; display: block; font-size: 11px; font-weight: 400; }   /* second line: name */
+  body.use-offsets .caption { top: calc(100% + (var(--bottom-gap) + var(--caption-gap) - var(--offset, 0) * var(--px-per-cm)) * var(--zoom)); }   /* stays put when pictures are offset */
   body.hide-captions .caption { display: none; }
   body.hide-height .height-line { display: none; }   /* hides the orange line and its label */
   body.hide-captions .track { --cap-room: 0px; }
@@ -214,9 +216,11 @@
    `offset` = cm the picture moves down when the Shoes toggle is on (converted with --px-per-cm); the orange line and label then show height - offset.
    `height` = real height in cm: sorting + the orange marker line (height x pixels-per-cm above the green line). */
 const ITEMS = [
-  { src: "img/Igla_main_side.png",       name: "Igla",       cat: "Igla",    offset: 7.5, height: 182 },
-  { src: "img/Florence_pajama_calibration.png",       name: "Calibration",       cat: "Calibration",    offset: 0, height: 200 },
-  { src: "img/Florence_pajama.png",       name: "Florence",       cat: "Florence",    offset: 0, height: 136 },
+   { src: "img/Igla_main_side.png",       name: "Default",       cat: "Igla",    offset: 7.5, height: 182 },
+   { src: "img/Florence_pajama_calibration.png",       name: "Calibration",       cat: "Calibration",    offset: 0, height: 200 },
+   { src: "img/Florence_pajama.png",       name: "Marvelous Yam Pastry",       cat: "Florence",    offset: 0, height: 136.1 },
+   { src: "img/Colphene Doppelganger.png",       name: "Doppelganger",       cat: "Colphene",    offset: 4.4, height: 140.8 },
+   { src: "img/Colphene Doppelganger Dorm.png",       name: "Doppelganger Dorm",       cat: "Colphene",    offset: 4.4, height: 140.8 },
   //{ src: "img/tall test.png",       name: "Test",       cat: "Calibration",    offset: 45, height: 182 },
 ].map((it, i) => ({ ...it, id: i }));
 
@@ -234,8 +238,8 @@ for (const it of ITEMS) {
   el.style.setProperty("--height-cm", it.height || 0);
   el.innerHTML = `
     <img src="${it.src}" alt="${it.name}" draggable="false" decoding="async">
-    <div class="height-line"><span class="height-label">${Math.round(it.height)} cm</span></div>
-    <div class="caption">${it.name}<small>${it.cat}</small></div>`;
+    <div class="height-line"><span class="height-label">${Number(Number(it.height).toFixed(1))} cm</span></div>
+    <div class="caption">${it.cat}<small>${it.name}</small></div>`;
   const img = el.querySelector("img");
   const setNH = () => { el.style.setProperty("--nh", img.naturalHeight); it.nh = img.naturalHeight; if (ready) updateExtent(); };
   img.complete && img.naturalHeight ? setNH() : img.addEventListener("load", setNH);
@@ -383,13 +387,6 @@ function resetView() { z = 1; x = 0; y = 0; atHome = true; stopInertia(); schedu
 viewport.addEventListener("dblclick", resetView);
 document.getElementById("reset").addEventListener("click", resetView);
 
-/* The toolbar wraps onto more lines on narrow screens: keep everything below it in step with its real height */
-const toolbarEl = document.querySelector(".toolbar");
-new ResizeObserver(() => {
-  document.documentElement.style.setProperty("--toolbar-h", toolbarEl.offsetHeight + "px");
-  schedule();
-}).observe(toolbarEl);
-
 new ResizeObserver(schedule).observe(track);                   // re-clamp when filters change width
 window.addEventListener("resize", schedule);
 
@@ -516,7 +513,7 @@ toggle("toggleGrid", "show-grid");
 toggle("toggleOffsets", "use-offsets");
 
 /* Orange label: height, or height - offset while Shoes is on */
-const fmtCm = (v) => Math.round(v) + " cm";   // always a whole number
+const fmtCm = (v) => Number(v.toFixed(1)) + " cm";   // one decimal, but only when it is not zero: 182 -> "182", 174.5 -> "174.5"
 function updateLabels() {
   const shoes = document.body.classList.contains("use-offsets");
   for (const it of ITEMS) {
