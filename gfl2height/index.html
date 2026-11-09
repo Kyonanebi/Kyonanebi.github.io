@@ -1,572 +1,597 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GFL2 Height Chart</title>
 <style>
-  :root {
-    --toolbar-h: 56px;
-    --sidebar-full: 260px;   /* width of the left menu (edit me) */
-    --sidebar-w: var(--sidebar-full);   /* space the menu currently takes: 0 while it is hidden */
-    --img-div: 6;       /* pictures are shown at 1/6 of their original height at 100% zoom (edit me) */
-    --guide-y: 700px;   /* green line: distance from the top, at 100% zoom (edit me) */
-    --bottom-gap: -29.2px; /* picture bottoms sit this far above the green line (edit me) */
-    --caption-gap: 20px; /* captions sit this far below the green line, at 100% zoom: it grows and shrinks with the zoom (edit me) */
-    --grid-px: 58.2px; /* one grid cell, in pixels at 100% zoom (edit me) */
-    --grid-cm: 20;      /* what one grid cell stands for, in cm: used by the cursor readout (edit me) */
-  --px-per-cm: calc(var(--grid-px) / var(--grid-cm));   /* pixels per cm at 100% zoom */
-  --height-line-color: rgba(255, 140, 0, .6);   /* half-transparent orange height marker (edit me) */
-  --height-line-width: 70%;                     /* of the picture's width (edit me) */
-  --height-text-color: rgb(255, 140, 0, .7);        /* orange height label above the line (edit me) */
-    --bg: #14151a;
-    --panel: #1d1f27;
-    --text: #e8e9ee;
-    --muted: #9a9cab;
-    --accent: #6ea8ff;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
-    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+:root {
+	/* general */
+	--version: "GL";
+	--offset-display: true;
+	--grid-display: true;
+	--height-display: true;
+	--label-display: true;
+	--spacing-global: 100px;
+	--rotation-max: 8;
+	--rotation-global: 1;
+	--zoom-min: -2;
+	--zoom-max: 5;
+	--format: "cm";
+	--px-per-cm: 3.491;
+	--zero-y: 700px;
+	--image-offset-y: 35.12px;
+	--image-scale: 0.2;
 
-  /* ---------- Fixed UI (never transformed) ---------- */
-  .toolbar {
-    position: fixed; inset: 0 0 auto 0; height: var(--toolbar-h); z-index: 10;
-    display: flex; align-items: center; gap: 14px; padding: 0 16px;
-    background: var(--panel); border-bottom: 1px solid #2a2d38;
-    overflow-x: auto; white-space: nowrap;
-  }
-  /* The toolbar has three groups: sorting / the four toggle buttons / the rest. On a wide screen they sit on one line
-     (groups are transparent); when that line does not fit, JS adds .stacked and each group becomes its own row. */
-  .tb-group { display: contents; }
-  .toolbar.stacked { height: auto; flex-direction: column; align-items: flex-start; gap: 8px; padding: 8px 16px; overflow-x: hidden; }
-  .toolbar.stacked .tb-group { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; white-space: nowrap; }
-  .toolbar.stacked .spacer { display: none; }
-  .toolbar label { color: var(--muted); display: flex; align-items: center; gap: 6px; }
-  .toolbar select, .toolbar button {
-    background: #262935; color: var(--text); border: 1px solid #343847;
-    border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer;
-  }
-  .toolbar button:hover, .toolbar select:hover { border-color: #4a5068; }
-  .toolbar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #0b1220; }
-  .chips { display: flex; gap: 6px; }
-  .spacer { flex: 1; }
-  .readout { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4.5ch; text-align: right; }
-  #cursorH { min-width: 12ch; }
+	/* grid */
+	--grid-cm: 20;
+	--grid-thickness: 0.5px;
 
-  /* ---------- Left sidebar: categories + pictures ---------- */
-  .sidebar {
-    position: fixed; top: var(--toolbar-h); bottom: 0; left: 0; width: var(--sidebar-full); z-index: 9;
-    background: var(--panel); border-right: 1px solid #2a2d38; overflow-y: auto; padding: 10px;
-  }
-  body.sidebar-hidden { --sidebar-w: 0px; }
-  body.sidebar-hidden .sidebar { transform: translateX(-100%); visibility: hidden; }
+	/* height display */
+	--height-line-min: 100px;
+	--height-line-margin: 80px;
+	--height-line-thickness: 1px;
+	--height-display-offset: 30px;
+}
 
-  /* Arrow tab on the edge of the left menu: hides / shows it */
-  .sidebar-tab {
-    position: fixed; top: calc(var(--toolbar-h) + 12px); left: var(--sidebar-w); z-index: 11;
-    width: 22px; height: 44px; padding: 0; cursor: pointer;
-    background: var(--panel); color: var(--muted); border: 1px solid #2a2d38; border-left: 0;
-    border-radius: 0 8px 8px 0; font-size: 12px; line-height: 1;
-  }
-  .sidebar-tab:hover { color: var(--text); border-color: #4a5068; }
-  .sidebar-tab span { display: inline-block; transition: transform .15s; }
-  body.sidebar-hidden .sidebar-tab span { transform: rotate(180deg); }
+html, body {
+	margin: 0;
+	height: 100%;
+	overflow: hidden;
+	background: #14151a;
+}
 
-  .side-actions { display: flex; gap: 6px; margin-bottom: 10px; }
-  .side-actions button {
-    flex: 1; background: #262935; color: var(--text); border: 1px solid #343847;
-    border-radius: 6px; padding: 5px 8px; font: inherit; cursor: pointer;
-  }
-  .side-actions button:hover { border-color: #4a5068; }
-  .group { margin-bottom: 6px; }
-  .cat-row { display: flex; align-items: center; gap: 4px; padding: 4px 2px; font-weight: 600; }
-  .cat-row label { display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; }
-  .count { color: var(--muted); font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
-  .twisty {
-    background: none; border: 0; color: var(--muted); cursor: pointer; width: 20px; padding: 0;
-    font-size: 14px; transition: transform .15s;
-  }
-  .group.collapsed .twisty { transform: rotate(-90deg); }
-  .group.collapsed .items { display: none; }
-  .items { margin-left: 22px; border-left: 1px solid #2a2d38; padding-left: 8px; }
-  .item-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
-  .item-row .name {
-    flex: 1; text-align: left; background: none; border: 0; color: var(--text);
-    font: inherit; cursor: pointer; padding: 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .item-row .name:hover { color: var(--accent); }
-  .item-row.off .name { opacity: .4; }
-  .sidebar input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+/* ---------- UI bar, always visible at the top ---------- */
+#ui {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	z-index: 100;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 12px;
+	background: rgba(20, 21, 26, .9);
+	border-bottom: 1px solid rgba(255, 255, 255, .15);
+	font: 14px sans-serif;
+	color: #eee;
+}
+#ui select,
+#ui button {
+	font: inherit;
+	color: inherit;
+	background: #23252d;
+	border: 1px solid rgba(255, 255, 255, .25);
+	border-radius: 4px;
+	padding: 4px 8px;
+}
+#ui button { cursor: pointer; }
+#ui button:hover { background: #2e3140; }
+#ui .readout {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+#ui #cursor-cm { margin-left: auto; min-width: 9ch; }
+#ui #zoom-level { min-width: 4ch; }
 
-  /* ---------- Viewport + zoomable world ---------- */
-  .viewport {
-    position: fixed; inset: var(--toolbar-h) 0 0 var(--sidebar-w); overflow: hidden;
-    --zoom: 1;                                   /* 1 = 100%, 4 = 400% (set from JS) */
-    cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
-  }
-  .viewport.dragging { cursor: grabbing; }
+/* "Customize" dropdown */
+#ui .dropdown { position: relative; }
+#ui .dropdown .panel {
+	display: none;
+	position: absolute;
+	top: calc(100% + 6px);
+	left: 0;
+	min-width: 160px;
+	padding: 10px 12px;
+	background: #23252d;
+	border: 1px solid rgba(255, 255, 255, .25);
+	border-radius: 4px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, .4);
+}
+#ui .dropdown.open .panel { display: flex; flex-direction: column; gap: 8px; }
+#ui .dropdown .panel .option {
+	border: none;
+	background: transparent;
+	text-align: left;
+	white-space: nowrap;
+	padding: 4px 8px;
+	margin: 0 -8px;
+}
+#ui .dropdown .panel .option:hover { background: #2e3140; }
+#ui .dropdown .panel .option.active { background: rgba(255, 255, 255, .12); }
+#ui .toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	cursor: pointer;
+	white-space: nowrap;
+}
 
-  .track {
-    position: absolute; left: 0; top: 0; z-index: 1;
-    --pad: 0px;                                  /* extra room below for shifted pictures */
-    --cap-room: calc(64px + max(0px, var(--bottom-gap)) * var(--zoom));   /* room below for the captions */
-    height: calc((var(--guide-y) - var(--bottom-gap) + var(--top-extra, 0) * 1px) * var(--zoom) + var(--pad) + var(--cap-room)); width: max-content;
-    display: flex; align-items: flex-end; gap: 0; padding: 0 0 calc(var(--pad) + var(--cap-room));   /* bottoms aligned */
-    /* only a whole-pixel translate is applied (no scale), so images are re-rendered sharp at every zoom */
-  }
+/* "Rotate" control: < Rotate > */
+#ui .rotate {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
 
-  .tile { position: relative; z-index: 1; flex: none; width: max-content; background: transparent;
-          --h: calc(var(--nh, 0) * 1px * var(--zoom) / var(--img-div));   /* this picture's height at the current zoom */
-          height: var(--h); top: 0; }
-  .tile.hidden { display: none; }
-  body.use-offsets .track { --pad: calc(var(--max-off, 0) * var(--px-per-cm) * var(--zoom)); }   /* offsets are in cm */
-  body.use-offsets .tile  { top: calc(var(--offset, 0) * var(--px-per-cm) * var(--zoom)); }   /* offset (cm) -> px */
-  .tile img { height: var(--h); width: auto; display: block; pointer-events: none; }
+/* whole page area; layers are stacked inside it.
+   --s / --tx / --ty = current view (scale and translation), set by the zoom code */
+#chart {
+	--s: 1;
+	--tx: 0px;
+	--ty: 0px;
+	position: relative;
+	height: 100vh;
+	overflow: hidden;
+	touch-action: none;
+}
 
-  /* Grid fills the whole viewport behind the pictures and follows pan and zoom: cell size scales with the pictures,
-     line thickness stays constant on screen */
-  .grid {
-    position: absolute; inset: 0; pointer-events: none; display: none; z-index: 0;
-    --line: 1.5px;                              /* constant: nothing scales it any more */
-    --cell: calc(var(--grid-px) * var(--zoom));    /* cells grow with the pictures */
-    --grid-color: rgba(255, 255, 255, .15);
-    --guide-color: rgba(60, 220, 100, .6);
-    background-image:
-      linear-gradient(to right,  var(--grid-color) var(--line), transparent 0),
-      linear-gradient(to bottom, var(--grid-color) var(--line), transparent 0);
-    background-size: var(--cell) var(--cell);
-    /* horizontal lines grow up and down from the green guide line; vertical ones from the left edge of the strip */
-    background-position: var(--gx, 0px) calc(var(--gy, 0px) + (var(--guide-y) + var(--top-extra, 0) * 1px) * var(--zoom));
-  }
-  body.show-grid .grid { display: block; }
+/* layer 1: grey grid, anchored to the green 0cm line, follows the zoom */
+#grid {
+	--grid-size: calc(var(--grid-cm) * var(--px-per-cm) * var(--s) * 1px);
+	--line: var(--grid-thickness);   /* constant on screen, not affected by zoom */
+	--grid-color: rgba(255, 255, 255, .15);
+	position: absolute;
+	inset: 0;
+	background-image:
+		linear-gradient(to bottom, var(--grid-color) var(--line), transparent var(--line)),
+		linear-gradient(to right,  var(--grid-color) var(--line), transparent var(--line));
+	background-size: var(--grid-size) var(--grid-size);
+	/* horizontal lines start at the 0cm line and repeat both up and down */
+	background-position: var(--tx) calc(var(--ty) + var(--zero-y) * var(--s));
+}
+#grid.hidden { display: none; }
 
-  /* Green guide line, part of the grid: moves and scales with the pictures, constant thickness */
-  .guide {
-    position: absolute; left: 0; right: 0;
-    top: calc(var(--gy, 0px) + (var(--guide-y) + var(--top-extra, 0) * 1px) * var(--zoom));
-    height: var(--line); background: var(--guide-color);
-  }
+/* layer 2: green 0cm line, always spans the whole screen */
+#zero-line {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: calc(var(--ty) + var(--zero-y) * var(--s));
+	height: var(--grid-thickness);   /* constant on screen, not affected by zoom */
+	background: rgba(60, 220, 100, .6);
+}
 
-  /* Caption: horizontally centered on its picture, vertically --caption-gap (scaled with the zoom) below the green line */
-  .caption {
-    position: absolute; left: 50%; transform: translateX(-50%);
-    top: calc(100% + (var(--bottom-gap) + var(--caption-gap)) * var(--zoom));   /* picture bottom -> green line -> 10px lower */
-    pointer-events: none; text-align: center;
-    width: max-content; max-width: 100%;                                  /* never wider than its picture; long text wraps */
-    white-space: normal; overflow-wrap: anywhere;
-    padding: 6px 10px; border-radius: 6px;
-    background: rgba(0, 0, 0, .55); color: #fff; font-size: 13px; font-weight: 600;   /* main line: category */
-  }
-  /* Height marker: half-transparent orange line fixed on its picture at `height` cm. With Shoes on, the picture (and the
-     line with it) moves down by `offset`, so the line sits at (height - offset) cm above the green line. */
-  .height-line {
-    position: absolute; left: 50%; width: var(--height-line-width); pointer-events: none;
-    height: 2px; background: var(--height-line-color);                    /* constant thickness on screen */
-    transform: translate(-50%, -50%);
-    top: calc(100% + (var(--bottom-gap) - var(--height-cm, 0) * var(--px-per-cm)) * var(--zoom));
-  }
-  .height-label {                                                        /* sits above the line, right-aligned to its right end */
-    position: absolute; right: 0; bottom: 100%; margin-bottom: 3px;
-    color: var(--height-text-color); font-size: 13px; font-weight: 600;
-    white-space: nowrap; font-variant-numeric: tabular-nums;            /* constant size on screen */
-  }
-  .caption small { color: #c3c6d4; display: block; font-size: 11px; font-weight: 400; }   /* second line: name */
-  body.use-offsets .caption { top: calc(100% + (var(--bottom-gap) + var(--caption-gap) - var(--offset, 0) * var(--px-per-cm)) * var(--zoom)); }   /* stays put when pictures are offset */
-  body.hide-captions .caption { display: none; }
-  body.hide-height .height-line { display: none; }   /* hides the orange line and its label */
-  body.hide-captions .track { --cap-room: 0px; }
+/* layer 3: images. This layer is moved/scaled as a whole by the zoom. */
+#images {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 0;
+	height: 0;
+	transform-origin: 0 0;
+	transform: translate(var(--tx), var(--ty)) scale(var(--s));
+}
+/* images stand above the line (bottom edge = line + --image-offset-y).
+   hidden until loaded and sized, so they never show at full scale */
+#images img {
+	position: absolute;
+	/* --img-offset = img.offset * --px-per-cm, set per image (0px when offsets are off) */
+	top: calc(var(--zero-y) + var(--image-offset-y) + var(--img-offset, 0px));
+	transform: translateY(-100%);
+	visibility: hidden;
+	pointer-events: none;   /* so dragging/panning also works over images */
+	user-select: none;
+	-webkit-user-drag: none;
+}
+#images img.ready { visibility: visible; }
+
+/* layer 4: height info. This layer is NOT scaled as a whole: each .hline is positioned
+   from its world coordinates (--x, --y, --w) with the zoom applied by hand, so the line
+   thickness and the text size stay constant on screen. */
+#heights {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+#heights .hline {
+	position: absolute;
+	left:  calc(var(--tx) + var(--x) * var(--s));
+	top:   calc(var(--ty) + var(--y) * var(--s));
+	width: calc(var(--w) * var(--s));
+	height: 0;
+}
+#heights .hline .line {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	height: var(--height-line-thickness);   /* constant on screen, not affected by zoom */
+	background: rgba(255, 140, 0, .5);
+}
+#heights .hline .label {
+	position: absolute;
+	right: 0;
+	bottom: 3px;
+	font: 14px sans-serif;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	color: rgb(255, 150, 30);
+}
 </style>
 </head>
-<body class="show-grid use-offsets">
+<body>
 
-<div class="toolbar">
-  <div class="tb-group">
-    <label>Sort
-      <select id="sort">
-        <option value="height">Height</option>
-        <option value="name">Name</option>
-      </select>
-    </label>
-    <select id="sortDir" aria-label="Sort direction">
-      <option value="desc">Descending</option>
-      <option value="asc">Ascending</option>
-    </select>
-  </div>
-  <span class="spacer"></span>
-  <div class="tb-group">
-    <button id="toggleOffsets" aria-pressed="true">Shoes</button>
-    <button id="toggleGrid" aria-pressed="true">Grid</button>
-    <button id="toggleHeight" aria-pressed="true">Height</button>
-    <button id="toggleCaptions" aria-pressed="true">Captions</button>
-  </div>
-  <div class="tb-group">
-    <span class="readout" id="cursorH" title="Distance of the cursor from the green line, in cm (one grid cell = --grid-cm)">–</span>
-    <button id="reset">Reset view</button>
-    <span class="readout" id="readout">100%</span>
-  </div>
+<div id="ui">
+	<span>Sort by</span>
+	<div class="dropdown" id="sort-menu">
+		<button class="dropdown-btn" id="sort-btn" type="button"></button>
+		<div class="panel">
+			<button class="option" type="button" data-value="height">Height</button>
+			<button class="option" type="button" data-value="name">Name</button>
+		</div>
+	</div>
+	<button id="sort-reverse" type="button"></button>
+
+	<div class="dropdown" id="customize">
+		<button class="dropdown-btn" id="customize-btn" type="button">Customize ▾</button>
+		<div class="panel">
+			<label class="toggle">
+				<input type="checkbox" id="toggle-offset">
+				Shoe offset
+			</label>
+		</div>
+	</div>
+
+	<div class="rotate">
+		<button id="rotate-prev" type="button">&lt;</button>
+		<span>Rotate</span>
+		<button id="rotate-next" type="button">&gt;</button>
+	</div>
+
+	<span id="cursor-cm" class="readout">—</span>
+	<button id="zoom-reset" type="button">Reset</button>
+	<span id="zoom-level" class="readout">100%</span>
 </div>
 
-<aside class="sidebar" id="sidebar">
-  <div class="side-actions">
-    <button id="showAll">Show all</button>
-    <button id="hideAll">Hide all</button>
-  </div>
-  <div id="groups"></div>
-</aside>
-
-<button class="sidebar-tab" id="sidebarTab" aria-expanded="true" title="Hide / show the list"><span>◀</span></button>
-
-<div class="viewport" id="viewport">
-  <div class="track" id="track"></div>
+<div id="chart">
+	<div id="grid"></div>
+	<div id="zero-line"></div>
+	<div id="images"></div>
+	<div id="heights"></div>
 </div>
 
 <script>
-/* ============ 1. DATA ============
-   One entry per picture. `src` is the image path or URL.
-   Widths are taken automatically from each image's real proportions.
-   `offset` = cm the picture moves down when the Shoes toggle is on (converted with --px-per-cm); the orange line and label then show height - offset.
-   `height` = real height in cm: sorting + the orange marker line (height x pixels-per-cm above the green line). */
-const ITEMS = [
-   { src: "img/Igla_main_side.png",       name: "Default",       cat: "Igla",    offset: 7.5, height: 182 },
-   { src: "img/Voymastina B-ROBO Voymawari.png",       name: "B-ROBO Voymawari",       cat: "Voymastina",    offset: 2, height: 177.2 },
-   { src: "img/Florence_pajama_calibration.png",       name: "Calibration",       cat: "Calibration",    offset: 0, height: 200 },
-   { src: "img/Florence_pajama.png",       name: "Marvelous Yam Pastry",       cat: "Florence",    offset: 0, height: 136.1 },
-   { src: "img/Colphene Doppelganger.png",       name: "Doppelganger",       cat: "Colphene",    offset: 4.4, height: 140.8 },
-   { src: "img/Colphene Doppelganger Dorm.png",       name: "Doppelganger Dorm",       cat: "Colphene",    offset: 4.4, height: 140.8 },
-  //{ src: "img/tall test.png",       name: "Test",       cat: "Calibration",    offset: 45, height: 182 },
-].map((it, i) => ({ ...it, id: i }));
+// ---------- helpers: read CSS variables ----------
+const rootStyle = getComputedStyle(document.documentElement);
 
-/* ============ 2. BUILD DOM (once) ============ */
-const track    = document.getElementById("track");
-const viewport = document.getElementById("viewport");
-const readout  = document.getElementById("readout");
-
-var ready = false;                              // set once the page is fully built
-const tiles = new Map();
-for (const it of ITEMS) {
-  const el = document.createElement("div");
-  el.className = "tile";
-  el.style.setProperty("--offset", it.offset || 0);
-  el.style.setProperty("--height-cm", it.height || 0);
-  el.innerHTML = `
-    <img src="${it.src}" alt="${it.name}" draggable="false" decoding="async">
-    <div class="height-line"><span class="height-label">${Number(Number(it.height).toFixed(1))} cm</span></div>
-    <div class="caption">${it.cat}<small>${it.name}</small></div>`;
-  const img = el.querySelector("img");
-  const setNH = () => { el.style.setProperty("--nh", img.naturalHeight); it.nh = img.naturalHeight; if (ready) updateExtent(); };
-  img.complete && img.naturalHeight ? setNH() : img.addEventListener("load", setNH);
-  track.appendChild(el);
-  tiles.set(it.id, el);
-}
-const grid = document.createElement("div");   // one grid layer covering the whole viewport, behind the strip
-grid.className = "grid";
-grid.innerHTML = '<div class="guide"></div>';
-viewport.insertBefore(grid, track);
-
-/* ============ 3. ZOOM + PAN ============ */
-const MIN_Z = 1, MAX_Z = 4;
-let z = 1, x = 0, y = 0;
-let raf = 0;
-let guideY = 0;          // green line position (px at 100%), read from CSS
-let gridPx = 58.25, gridCm = 20;   // one grid cell in px (at 100%) and in cm, read from CSS
-let cursorY = null;      // cursor y inside the viewport, null when outside
-let extra = 0;          // px (at 100%) the strip reaches above the home view; home view hides it
-let atHome = true;       // true until the user drags or zooms
-
-function clamp() {
-  const W = viewport.clientWidth,  H = viewport.clientHeight;
-  const cw = track.offsetWidth, ch = track.offsetHeight;   // already at current zoom
-  x = cw <= W ? 0 : Math.min(0, Math.max(W - cw, x));
-  if (atHome) y = -extra * z;                              // home view: green line where it always was
-  const yMin = Math.min(H - ch, -extra * z);               // home position is always reachable
-  y = Math.min(0, Math.max(yMin, y));                      // y = 0 shows the very top of tall pictures
+function cssVar(name) {
+	return rootStyle.getPropertyValue(name).trim().replace(/^["']|["']$/g, "");
 }
 
-function render() {
-  raf = 0;
-  viewport.style.setProperty("--zoom", z);                    // resizes images + grid through CSS
-  clamp();                                                    // after the zoom is applied, so sizes are current
-  const rx = Math.round(x), ry = Math.round(y);
-  track.style.transform = `translate(${rx}px, ${ry}px)`;
-  viewport.style.setProperty("--gx", rx + "px");           // grid follows the strip
-  viewport.style.setProperty("--gy", ry + "px");
-  readout.textContent = Math.round(z * 100) + "%";
-  updateCursorReadout();                                      // keeps it right while panning/zooming under a still cursor
+// ---------- raw image data ----------
+const rawImages = [
+	{ src: "img/Igla Default",                        name: "Igla",        type: "Default",                   offset: 6.5,   height: 181.33, extra: 190,   spacing: "150px", version: "GL" },
+	{ src: "img/Igla Ardent Rose",                    name: "Igla",        type: "Ardent Rose",               offset: 10.44, height: 185.27, extra: 195.3, spacing: "150px", version: "GL" },
+	{ src: "img/Igla Dorm",                           name: "Igla",        type: "Dorm",                      offset: 6.5,   height: 181.33, extra: 184.7, spacing: "150px", version: "GL" },
+	{ src: "img/Calibration",                         name: "Calibration", type: "Calibration",               offset: 0,     height: 200,    extra: 0,     spacing: "60px",  version: "CH" },
+	{ src: "img/Colphne Default",                     name: "Colphne",     type: "Default",                   offset: 4.4,   height: 140.57, extra: 145.8, spacing: "20px",  version: "GL" },
+	{ src: "img/Colphne Dorm",                        name: "Colphne",     type: "Dorm",                      offset: 4.4,   height: 140.57, extra: 145.8, spacing: "20px",  version: "GL" },
+	{ src: "img/Colphne's Training Outfit",           name: "Colphne",     type: "Colphne's Training Outfit", offset: 4.4,   height: 140.57, extra: 145.8, spacing: "20px",  version: "GL" },
+	{ src: "img/Colphne Silent Heart",                name: "Colphne",     type: "Silent Heart",              offset: 4.4,   height: 140.63, extra: 145.8, spacing: "20px",  version: "GL" },
+	{ src: "img/Colphne Doppelganger Default",        name: "Colphne",     type: "Doppelganger Default",      offset: 4.4,   height: 140.57, extra: 145.8, spacing: "20px",  version: "GL" },
+	{ src: "img/Colphne Doppelganger Dorm",           name: "Colphne",     type: "Doppelganger Dorm",         offset: 4.4,   height: 140.57, extra: 145.8, spacing: "20px",  version: "GL" },
+];
+
+// ---------- final data: raw data + added properties ----------
+const images = rawImages.map(img => ({
+	...img,
+	rotation:   parseFloat(cssVar("--rotation-global")),
+	visibility: img.version === cssVar("--version"),
+}));
+
+// ---------- sorting ----------
+// height used for sorting: with or without offset, depending on --offset-display
+function sortHeight(img) {
+	return cssVar("--offset-display") === "true" ? img.height - img.offset : img.height;
 }
-/* Cursor height above the green line in cm (0 at or below it): the first grid line away from it reads one --grid-cm (20 cm), at any zoom */
-const cursorEl = document.getElementById("cursorH");
+
+// sorts `images` in place.
+// by: "height" | "name"   ("name": by name first, then same names by height)
+// descending: true = high -> low / Z -> A, false = low -> high / A -> Z
+function sortImages(by = "height", descending = true) {
+	const dir = descending ? -1 : 1;
+	if (by === "name") {
+		images.sort((a, b) => dir * (a.name.localeCompare(b.name) || sortHeight(a) - sortHeight(b)));
+	} else {
+		images.sort((a, b) => dir * (sortHeight(a) - sortHeight(b)));
+	}
+}
+
+// ---------- display ----------
+const imagesLayer = document.getElementById("images");
+const elements = new Map();   // image data object -> its <img> element (created once)
+
+// file name of an image for its current rotation, e.g. "img/Igla Default0001.webp"
+function imageUrl(img) {
+	return img.src + "000" + img.rotation + ".webp";
+}
+
+// each <img> is created once and kept, so sorting never reloads or resizes it
+function createElements() {
+	const scale = parseFloat(cssVar("--image-scale"));
+	for (const img of images) {
+		const el = document.createElement("img");
+		// set the size first, show only after that (no flash at full scale)
+		el.onload = () => {
+			el.style.width = el.naturalWidth * scale + "px";
+			el.classList.add("ready");
+			renderImages();   // the width is known now, so the height lines can be centered
+		};
+		el.src = imageUrl(img);
+		el.alt = img.name + " " + img.type;
+		imagesLayer.appendChild(el);
+		elements.set(img, el);
+	}
+}
+
+// only places the existing elements, in the current sort order
+function renderImages() {
+	const spacingG   = parseFloat(cssVar("--spacing-global"));
+	const pxPerCm    = parseFloat(cssVar("--px-per-cm"));
+	const useOffset  = cssVar("--offset-display") === "true";
+
+	const placed = [];   // visible images with their x position, for the height layer
+	let x = 0;
+	for (const img of images) {
+		const el = elements.get(img);
+		imagesLayer.appendChild(el);   // moves it, keeps stacking order = sort order
+		el.style.display = img.visibility ? "" : "none";
+		if (!img.visibility) continue;
+
+		// with offsets on, the image is moved down by img.offset (cm -> px)
+		el.style.setProperty("--img-offset", useOffset ? img.offset * pxPerCm + "px" : "0px");
+		el.style.left = x + "px";
+		placed.push({ img, el, x });
+		x += spacingG + parseFloat(img.spacing);   // images may overlap
+	}
+
+	renderHeights(placed);
+}
+
+// current height of an image in cm: height, minus offset if --offset-display is true
+function currentHeight(img) {
+	return cssVar("--offset-display") === "true" ? img.height - img.offset : img.height;
+}
+
+// height info layer: an orange line + label at each image's height.
+// Rebuilt together with the images, so sorting/offset changes update it too.
+function renderHeights(placed) {
+	const layer = document.getElementById("heights");
+	layer.innerHTML = "";
+	layer.style.display = cssVar("--height-display") === "true" ? "" : "none";
+
+	const zeroY    = parseFloat(cssVar("--zero-y"));
+	const pxPerCm  = parseFloat(cssVar("--px-per-cm"));
+	const spacingG = parseFloat(cssVar("--spacing-global"));
+	const lineMin  = parseFloat(cssVar("--height-line-min"));
+	const margin   = parseFloat(cssVar("--height-line-margin"));
+	const shiftX   = parseFloat(cssVar("--height-display-offset"));
+	const format   = cssVar("--format");
+
+	for (const { img, el, x } of placed) {
+		const cm    = currentHeight(img);
+		const width = Math.max(lineMin, spacingG + parseFloat(img.spacing) - margin);
+		const center = x + el.offsetWidth / 2;   // centered on the image
+
+		const hline = document.createElement("div");
+		hline.className = "hline";
+		// world coordinates; the CSS applies the zoom/pan (see #heights .hline)
+		hline.style.setProperty("--x", center - width / 2 + shiftX + "px");   // + offset to the right
+		hline.style.setProperty("--y", zeroY - cm * pxPerCm + "px");
+		hline.style.setProperty("--w", width + "px");
+
+		const line = document.createElement("div");
+		line.className = "line";
+
+		const label = document.createElement("div");
+		label.className = "label";
+		label.textContent = cm.toFixed(1) + " " + format;
+
+		hline.append(line, label);
+		layer.appendChild(hline);
+	}
+}
+
+// ---------- view: zoom ----------
+// Photoshop-style: 100% is the default, the UI shows the real scale in percent.
+//   --zoom-max : maximum scale as a multiple of 100%  (5 -> 500%)
+//   --zoom-min : zoom-out step, scale = 1 / (1 - min / 2)
+//                (-1 -> 66.67%, -2 -> 50%)
+function minScale() { return 1 / (1 - parseFloat(cssVar("--zoom-min")) / 2); }
+function maxScale() { return parseFloat(cssVar("--zoom-max")); }
+
+const chart = document.getElementById("chart");
+let scale = 1, tx = 0, ty = 0;    // zoom scale (1 = 100%) and translation (px) of the view
+let mouse = null;                  // last cursor position
+
+function applyView() {
+	chart.style.setProperty("--s", scale);
+	chart.style.setProperty("--tx", tx + "px");
+	chart.style.setProperty("--ty", ty + "px");
+
+	document.getElementById("zoom-level").textContent = Math.round(scale * 100) + "%";
+	updateCursorReadout();
+}
+
+// sets a new scale, keeping the point (px, py) on screen fixed
+function zoomAt(newScale, px, py) {
+	newScale = Math.min(maxScale(), Math.max(minScale(), newScale));
+
+	const wx = (px - tx) / scale;   // world point under (px, py)
+	const wy = (py - ty) / scale;
+	scale = newScale;
+	tx = px - wx * scale;
+	ty = py - wy * scale;
+	applyView();
+}
+
+function resetView() {
+	scale = 1; tx = 0; ty = 0;
+	applyView();
+}
+
+// distance of the cursor from the green line, in cm (above the line = positive)
 function updateCursorReadout() {
-  if (cursorY === null) { cursorEl.textContent = "–"; return; }
-  const lineScreen = y + (guideY + extra) * z;                // green line position inside the viewport
-  const cm = Math.max(0, lineScreen - cursorY) / z / gridPx * gridCm;   // screen px -> px at 100% -> grid cells -> cm; below the line stays 0
-  cursorEl.textContent = cm.toFixed(1) + " cm";
+	const el = document.getElementById("cursor-cm");
+	if (!mouse) { el.textContent = "—"; return; }
+	const worldY = (mouse.y - ty) / scale;
+	// only shown above the green line; below it is capped to 0
+	const cm = Math.max(0, (parseFloat(cssVar("--zero-y")) - worldY) / parseFloat(cssVar("--px-per-cm")));
+	el.textContent = cm.toFixed(1) + " " + cssVar("--format");
 }
-viewport.addEventListener("pointermove", (e) => { cursorY = e.clientY - viewport.getBoundingClientRect().top; updateCursorReadout(); });
-viewport.addEventListener("pointerleave", () => { cursorY = null; updateCursorReadout(); });
-function schedule() { if (!raf) raf = requestAnimationFrame(render); }
 
-viewport.addEventListener("wheel", (e) => {
-  e.preventDefault();
-  const rect = viewport.getBoundingClientRect();
-  const px = e.clientX - rect.left, py = e.clientY - rect.top;
-  const nz = Math.min(MAX_Z, Math.max(MIN_Z, z * Math.exp(-e.deltaY * 0.0015)));
-  const wx = (px - x) / z, wy = (py - y) / z;                  // world point under cursor
-  x = px - wx * nz; y = py - wy * nz;                          // keep it under the cursor
-  z = nz;
-  atHome = false;
-  stopInertia();
-  schedule();
+// mouse wheel (also trackpad pinch, which arrives as ctrl + wheel)
+chart.addEventListener("wheel", e => {
+	e.preventDefault();
+	const d = e.deltaY * (e.deltaMode === 1 ? 16 : 1);
+	zoomAt(scale * Math.exp(-d * 0.002), e.clientX, e.clientY);
 }, { passive: false });
 
-/* Drag with pointer events (mouse, touch, pen) + a bit of inertia */
-let dragging = false, lastX = 0, lastY = 0, lastT = 0, vx = 0, vy = 0, inertiaId = 0;
-
-/* Pointers currently down (mouse button, fingers, pen). One pointer drags; two fingers pinch-zoom (and pan). */
-const pointers = new Map();                      // pointerId -> {x, y}
-let pinch = null;                                // while two fingers are down: start distance, start zoom, world point under their midpoint
-
-function startDrag(px, py) {
-  dragging = true; lastX = px; lastY = py; lastT = performance.now(); vx = vy = 0;
-  viewport.classList.add("dragging");
+// pinch on touch screens
+let pinchDist = 0;
+function touchInfo(e) {
+	const a = e.touches[0], b = e.touches[1];
+	return {
+		dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+		x: (a.clientX + b.clientX) / 2,
+		y: (a.clientY + b.clientY) / 2,
+	};
 }
-function beginPinch() {
-  dragging = false; viewport.classList.remove("dragging");
-  const [a, b] = [...pointers.values()];
-  const rect = viewport.getBoundingClientRect();
-  const mx = (a.x + b.x) / 2 - rect.left, my = (a.y + b.y) / 2 - rect.top;
-  pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, z, wx: (mx - x) / z, wy: (my - y) / z };
-}
-
-viewport.addEventListener("pointerdown", (e) => {
-  if (e.button !== 0) return;
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  viewport.setPointerCapture(e.pointerId);
-  atHome = false; stopInertia();
-  if (pointers.size === 1) startDrag(e.clientX, e.clientY);
-  else if (pointers.size === 2) beginPinch();
+chart.addEventListener("touchstart", e => {
+	if (e.touches.length === 2) pinchDist = touchInfo(e).dist;
+}, { passive: true });
+chart.addEventListener("touchmove", e => {
+	if (e.touches.length !== 2) return;
+	e.preventDefault();
+	const t = touchInfo(e);
+	if (pinchDist > 0) {
+		zoomAt(scale * t.dist / pinchDist, t.x, t.y);
+	}
+	pinchDist = t.dist;
+}, { passive: false });
+chart.addEventListener("touchend", e => {
+	if (e.touches.length < 2) pinchDist = 0;
 });
-viewport.addEventListener("pointermove", (e) => {
-  if (!pointers.has(e.pointerId)) return;
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pinch && pointers.size >= 2) {             // pinch: zoom follows the finger distance, centered between the fingers
-    const [a, b] = [...pointers.values()];
-    const rect = viewport.getBoundingClientRect();
-    const mx = (a.x + b.x) / 2 - rect.left, my = (a.y + b.y) / 2 - rect.top;
-    const nz = Math.min(MAX_Z, Math.max(MIN_Z, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.dist));
-    z = nz; x = mx - pinch.wx * nz; y = my - pinch.wy * nz;   // keeps the same picture point under the fingers
-    schedule();
-    return;
-  }
-  if (!dragging) return;
-  const now = performance.now(), dt = Math.max(1, now - lastT);
-  const dx = e.clientX - lastX, dy = e.clientY - lastY;
-  x += dx; y += dy;
-  vx = dx / dt; vy = dy / dt;
-  lastX = e.clientX; lastY = e.clientY; lastT = now;
-  schedule();
+
+// pan: drag with the mouse or one finger (two fingers = pinch zoom, no pan)
+const pointers = new Map();   // active pointers: id -> last position
+
+chart.addEventListener("pointerdown", e => {
+	if (e.pointerType === "mouse" && e.button !== 0) return;
+	pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+	chart.setPointerCapture(e.pointerId);
 });
-function endDrag() {
-  if (!dragging) return;
-  dragging = false;
-  viewport.classList.remove("dragging");
-  if (performance.now() - lastT > 80) return;                  // paused before release: no fling
-  let prev = performance.now();
-  const step = (t) => {
-    const dt = t - prev; prev = t;
-    x += vx * dt; y += vy * dt;
-    vx *= 0.95; vy *= 0.95;
-    render();
-    inertiaId = (Math.abs(vx) > 0.02 || Math.abs(vy) > 0.02) ? requestAnimationFrame(step) : 0;
-  };
-  inertiaId = requestAnimationFrame(step);
-}
-function stopInertia() { if (inertiaId) cancelAnimationFrame(inertiaId); inertiaId = 0; }
+
+chart.addEventListener("pointermove", e => {
+	mouse = { x: e.clientX, y: e.clientY };
+
+	const prev = pointers.get(e.pointerId);
+	if (prev) {
+		if (pointers.size === 1) {
+			tx += e.clientX - prev.x;
+			ty += e.clientY - prev.y;
+		}
+		prev.x = e.clientX;
+		prev.y = e.clientY;
+	}
+	applyView();   // also refreshes the cursor readout
+});
+
 function endPointer(e) {
-  if (!pointers.delete(e.pointerId)) return;
-  if (pinch) {
-    if (pointers.size < 2) {
-      pinch = null;
-      if (pointers.size === 1) { const [p] = [...pointers.values()]; startDrag(p.x, p.y); }   // keep panning with the remaining finger
-    }
-    return;
-  }
-  endDrag();
+	pointers.delete(e.pointerId);
 }
-viewport.addEventListener("pointerup", endPointer);
-viewport.addEventListener("pointercancel", endPointer);
+chart.addEventListener("pointerup", endPointer);
+chart.addEventListener("pointercancel", endPointer);
 
-function resetView() { z = 1; x = 0; y = 0; atHome = true; stopInertia(); schedule(); }
-viewport.addEventListener("dblclick", resetView);
-document.getElementById("reset").addEventListener("click", resetView);
+document.getElementById("zoom-reset").addEventListener("click", resetView);
 
-new ResizeObserver(schedule).observe(track);                   // re-clamp when filters change width
-window.addEventListener("resize", schedule);
+// ---------- UI: sorting ----------
+const sortBtn     = document.getElementById("sort-btn");
+const sortOptions = document.querySelectorAll("#sort-menu .option");
+const sortReverse = document.getElementById("sort-reverse");
+let sortBy = "height";       // default sort option
+let sortDescending = true;   // default order
 
-/* Room above the green line: if a visible picture is taller than the space above its bottom edge, the strip is
-   extended upward so the top stays reachable by dragging. The home view hides that part, so everything
-   (green line included) starts exactly where it would without the extension. */
-function updateExtent() {
-  const cs = getComputedStyle(document.documentElement);
-  const num = (n) => parseFloat(cs.getPropertyValue(n)) || 0;
-  const div = num("--img-div") || 1;
-  const tallest = Math.max(0, ...ITEMS.filter(i => !off.has(i.id)).map(i => (i.nh || 0) / div));
-  guideY = num("--guide-y");
-  gridPx = num("--grid-px") || 58.25;
-  gridCm = num("--grid-cm") || 20;
-  extra = Math.max(0, tallest - (guideY - num("--bottom-gap")));
-  viewport.style.setProperty("--top-extra", extra);
-  schedule();
+function updateReverseButton() {
+	sortReverse.textContent = sortDescending ? "↓" : "↑";
 }
 
-/* ============ 4. SORT + FILTER (toggle, don't rebuild) ============ */
-const sortSel = document.getElementById("sort");
-const sortDirSel = document.getElementById("sortDir");
-
-/* Height as shown in the orange label: height, or height - offset while Shoes is on. Height sorting uses this. */
-const effHeight = (it) => it.height - (document.body.classList.contains("use-offsets") ? (it.offset || 0) : 0);
+// the dropdown button always shows the current sort option
+function updateSortButton() {
+	for (const opt of sortOptions) {
+		const active = opt.dataset.value === sortBy;
+		opt.classList.toggle("active", active);
+		if (active) sortBtn.textContent = opt.textContent + " ▾";
+	}
+}
 
 function applySort() {
-  const cmp = {                                   // ascending comparators (small to large, A to Z)
-    "height": (a, b) => effHeight(a) - effHeight(b),
-    "name":   (a, b) => a.name.localeCompare(b.name),
-  }[sortSel.value];
-  const dir = sortDirSel.value === "desc" ? -1 : 1;
-  [...ITEMS].sort((a, b) => dir * cmp(a, b)).forEach((it, i) => { tiles.get(it.id).style.order = i; });
-  schedule();
-}
-sortSel.addEventListener("change", applySort);
-sortDirSel.addEventListener("change", applySort);
-
-/* ---- Sidebar: categories with pictures inside, each with an on/off toggle ---- */
-const off = new Set();                          // ids of pictures currently switched off
-const groupsEl = document.getElementById("groups");
-const CATS = [...new Set(ITEMS.map(i => i.cat))];
-const catUI = new Map(), itemUI = new Map();
-
-for (const cat of CATS) {
-  const items = ITEMS.filter(i => i.cat === cat).sort((a, b) => a.name.localeCompare(b.name));
-  const group = document.createElement("div");
-  group.className = "group";
-  group.innerHTML = `
-    <div class="cat-row">
-      <button class="twisty" aria-label="Collapse or expand">▾</button>
-      <label><input type="checkbox" class="cat-box"><span>${cat}</span></label>
-      <span class="count"></span>
-    </div>
-    <div class="items"></div>`;
-  const box = group.querySelector(".cat-box");
-  const count = group.querySelector(".count");
-  const list = group.querySelector(".items");
-
-  group.querySelector(".twisty").addEventListener("click", () => group.classList.toggle("collapsed"));
-  box.addEventListener("change", () => {        // category toggle switches all its pictures
-    for (const it of items) box.checked ? off.delete(it.id) : off.add(it.id);
-    applyFilter();
-  });
-
-  for (const it of items) {
-    const row = document.createElement("div");
-    row.className = "item-row";
-    row.innerHTML = `<input type="checkbox"><button class="name">${it.name}</button>`;
-    const cb = row.querySelector("input");
-    cb.addEventListener("change", () => { cb.checked ? off.delete(it.id) : off.add(it.id); applyFilter(); });
-    row.querySelector(".name").addEventListener("click", () => panTo(it.id));
-    list.appendChild(row);
-    itemUI.set(it.id, { row, cb });
-  }
-  groupsEl.appendChild(group);
-  catUI.set(cat, { box, count, items });
+	sortImages(sortBy, sortDescending);
+	renderImages();
 }
 
-function applyFilter() {
-  for (const it of ITEMS) {
-    const hidden = off.has(it.id);
-    tiles.get(it.id).classList.toggle("hidden", hidden);
-    const ui = itemUI.get(it.id);
-    ui.cb.checked = !hidden;
-    ui.row.classList.toggle("off", hidden);
-  }
-  for (const [, ui] of catUI) {                 // category box: checked / unchecked / indeterminate
-    const on = ui.items.filter(i => !off.has(i.id)).length;
-    ui.box.checked = on === ui.items.length;
-    ui.box.indeterminate = on > 0 && on < ui.items.length;
-    ui.count.textContent = `${on}/${ui.items.length}`;
-  }
-  // room below the strip for the largest offset among visible pictures
-  track.style.setProperty("--max-off", Math.max(0, ...ITEMS.filter(i => !off.has(i.id)).map(i => i.offset || 0)));
-  updateExtent();
+for (const opt of sortOptions) {
+	opt.addEventListener("click", () => {
+		sortBy = opt.dataset.value;
+		updateSortButton();
+		opt.closest(".dropdown").classList.remove("open");
+		applySort();
+	});
 }
-document.getElementById("showAll").addEventListener("click", () => { off.clear(); applyFilter(); });
-document.getElementById("hideAll").addEventListener("click", () => { ITEMS.forEach(i => off.add(i.id)); applyFilter(); });
-
-/* Click a picture name in the sidebar: slide the view so that picture is centered */
-function panTo(id) {
-  const tile = tiles.get(id);
-  if (off.has(id)) return;
-  stopInertia();
-  const W = viewport.clientWidth;
-  const tx = W / 2 - (tile.offsetLeft + tile.offsetWidth / 2);
-  const x0 = x, t0 = performance.now();
-  const step = (t) => {
-    const k = Math.min(1, (t - t0) / 350), e = 1 - Math.pow(1 - k, 3);
-    x = x0 + (tx - x0) * e;
-    render();
-    if (k < 1) inertiaId = requestAnimationFrame(step); else inertiaId = 0;
-  };
-  inertiaId = requestAnimationFrame(step);
-}
-
-/* ============ 5. TOGGLES ============ */
-function toggle(btnId, cls, invert = false) {
-  const btn = document.getElementById(btnId);
-  btn.addEventListener("click", () => {
-    const on = document.body.classList.toggle(cls);
-    btn.setAttribute("aria-pressed", invert ? !on : on);
-  });
-}
-toggle("toggleGrid", "show-grid");
-toggle("toggleOffsets", "use-offsets");
-
-/* Orange label: height, or height - offset while Shoes is on */
-const fmtCm = (v) => Number(v.toFixed(1)) + " cm";   // one decimal, but only when it is not zero: 182 -> "182", 174.5 -> "174.5"
-function updateLabels() {
-  const shoes = document.body.classList.contains("use-offsets");
-  for (const it of ITEMS) {
-    tiles.get(it.id).querySelector(".height-label").textContent = fmtCm(it.height - (shoes ? (it.offset || 0) : 0));
-  }
-}
-document.getElementById("toggleOffsets").addEventListener("click", () => { updateLabels(); applySort(); });   // runs after the toggle has flipped the class: refresh labels and re-sort
-updateLabels();
-toggle("toggleCaptions", "hide-captions", true);
-toggle("toggleHeight", "hide-height", true);
-
-/* Arrow tab: hide / show the left menu (the picture area then takes the whole width) */
-const sidebarTab = document.getElementById("sidebarTab");
-sidebarTab.addEventListener("click", () => {
-  const hidden = document.body.classList.toggle("sidebar-hidden");
-  sidebarTab.setAttribute("aria-expanded", !hidden);
-  schedule();                                    // picture area changed width: re-clamp the view
+sortReverse.addEventListener("click", () => {
+	sortDescending = !sortDescending;
+	updateReverseButton();
+	applySort();
 });
 
-/* Top menu: one line if it fits, otherwise three rows (sort / toggle buttons / rest). Everything below it follows its height. */
-const toolbarEl = document.querySelector(".toolbar");
-function fitToolbar() {
-  toolbarEl.classList.remove("stacked");
-  document.documentElement.style.removeProperty("--toolbar-h");              // default one-line height
-  const tooWide = toolbarEl.scrollWidth > toolbarEl.clientWidth;
-  toolbarEl.classList.toggle("stacked", tooWide);
-  if (tooWide) document.documentElement.style.setProperty("--toolbar-h", toolbarEl.offsetHeight + "px");
-  schedule();
-}
-window.addEventListener("resize", fitToolbar);
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitToolbar);
-fitToolbar();
+// ---------- UI: dropdowns (sort + customize) ----------
+const dropdowns    = document.querySelectorAll("#ui .dropdown");
+const offsetToggle = document.getElementById("toggle-offset");
 
+for (const dd of dropdowns) {
+	dd.querySelector(".dropdown-btn").addEventListener("click", () => {
+		const wasOpen = dd.classList.contains("open");
+		dropdowns.forEach(d => d.classList.remove("open"));   // only one open at a time
+		if (!wasOpen) dd.classList.add("open");
+	});
+}
+// close when clicking anywhere else
+document.addEventListener("pointerdown", e => {
+	for (const dd of dropdowns) if (!dd.contains(e.target)) dd.classList.remove("open");
+});
+
+// "Shoe offset" controls --offset-display; heights change, so re-sort and redraw
+offsetToggle.checked = cssVar("--offset-display") === "true";
+offsetToggle.addEventListener("change", () => {
+	document.documentElement.style.setProperty("--offset-display", offsetToggle.checked ? "true" : "false");
+	applySort();
+});
+
+// ---------- UI: rotate ----------
+// step = -1 or +1. Wraps around: below 1 -> --rotation-max, above --rotation-max -> 1
+function rotateImages(step) {
+	const max = parseInt(cssVar("--rotation-max"));
+	for (const img of images) {
+		let r = img.rotation + step;
+		if (r < 1)   r = max;
+		if (r > max) r = 1;
+		img.rotation = r;
+		elements.get(img).src = imageUrl(img);   // new file; onload re-renders when it is in
+	}
+	renderImages();
+}
+
+document.getElementById("rotate-prev").addEventListener("click", () => rotateImages(-1));
+document.getElementById("rotate-next").addEventListener("click", () => rotateImages(+1));
+
+// ---------- start ----------
+createElements();
+updateSortButton();
+updateReverseButton();
 applySort();
-ready = true;
-applyFilter();
-render();
+applyView();
 </script>
 </body>
 </html>
