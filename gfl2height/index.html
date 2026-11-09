@@ -39,7 +39,10 @@ html, body {
 	height: 100%;
 	overflow: hidden;
 	background: #14151a;
+	user-select: none;           /* fast clicks must never select text */
+	-webkit-user-select: none;
 }
+#ui button { touch-action: manipulation; }   /* no double-tap zoom on fast taps */
 
 /* ---------- UI bar, always visible at the top ---------- */
 #ui {
@@ -487,7 +490,12 @@ chart.addEventListener("pointerdown", e => {
 chart.addEventListener("pointermove", e => {
 	mouse = { x: e.clientX, y: e.clientY };
 
-	const prev = pointers.get(e.pointerId);
+	let prev = pointers.get(e.pointerId);
+	// the mouse button is not held any more, but we missed the release: drop the stale drag
+	if (prev && e.pointerType === "mouse" && e.buttons === 0) {
+		pointers.delete(e.pointerId);
+		prev = undefined;
+	}
 	if (prev) {
 		if (pointers.size === 1) {
 			tx += e.clientX - prev.x;
@@ -504,6 +512,12 @@ function endPointer(e) {
 }
 chart.addEventListener("pointerup", endPointer);
 chart.addEventListener("pointercancel", endPointer);
+chart.addEventListener("lostpointercapture", endPointer);   // however the drag ended
+window.addEventListener("blur", () => pointers.clear());
+
+// fast clicking can select text or start a native drag, which interrupts our drag
+chart.addEventListener("dragstart",   e => e.preventDefault());
+chart.addEventListener("selectstart", e => e.preventDefault());
 
 document.getElementById("zoom-reset").addEventListener("click", resetView);
 
