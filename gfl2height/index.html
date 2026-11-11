@@ -34,6 +34,9 @@
 	--height-line-width: 90px;
 	--height-line-thickness: 1px;
 	--height-display-offset: 30px;
+
+	/* look */
+	--ui-accent: #6ab0ff;   /* checkboxes and slider */
 }
 
 html, body {
@@ -128,9 +131,107 @@ html, body {
 /* "Spacing" slider */
 #ui .spacing input[type="range"] {
 	width: 140px;
-	accent-color: #e8892b;
+	accent-color: var(--ui-accent);
 	cursor: pointer;
 }
+#ui input[type="checkbox"] { accent-color: var(--ui-accent); cursor: pointer; }
+
+/* ---------- image list: collapsible panel on the left ---------- */
+#sidebar {
+	position: fixed;
+	left: 0;
+	top: var(--ui-h, 44px);   /* below the UI bar, whatever height it wraps to */
+	bottom: 0;
+	width: max-content;   /* exactly as wide as the row of 3 buttons (the list does not count, see #img-list) */
+	max-width: 92vw;
+	z-index: 90;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px;
+	background: rgba(20, 21, 26, .92);
+	border-right: 1px solid rgba(255, 255, 255, .15);
+	font: 14px sans-serif;
+	color: #eee;
+	transition: transform .18s ease;
+}
+#sidebar.collapsed { transform: translateX(-100%); }
+
+/* the toggle sticks out of the panel's right edge, so it stays visible when collapsed */
+#sidebar-toggle {
+	position: absolute;
+	top: 10px;
+	left: 100%;
+	width: 30px;
+	border-left: none;
+	border-radius: 0 4px 4px 0;
+}
+
+#sidebar button,
+#sidebar input[type="search"] {
+	font: inherit;
+	color: inherit;
+	background: #23252d;
+	border: 1px solid rgba(255, 255, 255, .25);
+	border-radius: 4px;
+	padding: 4px 8px;
+}
+#sidebar button { cursor: pointer; touch-action: manipulation; }
+#sidebar button:hover { background: #2e3140; }
+#sidebar input[type="search"] { width: 100%; box-sizing: border-box; user-select: text; -webkit-user-select: text; }
+#sidebar .sb-buttons { display: flex; flex-wrap: nowrap; gap: 6px; }
+#sidebar .sb-buttons button { white-space: nowrap; }
+
+/* width 0 + min-width 100%: the list fills the panel but never makes it wider */
+#img-list { flex: 1; width: 0; min-width: 100%; overflow-y: auto; overflow-x: hidden; margin: 0 -4px; padding: 0 4px; box-sizing: content-box; }
+#img-list .grp.filtered { display: none; }
+#img-list label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 2px 0;
+	cursor: pointer;
+	white-space: nowrap;
+}
+#img-list .grp-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 0;
+	font-weight: 600;
+}
+#img-list .grp-name { flex: 1; min-width: 0; }
+#img-list .count {
+	color: #8a90a0;
+	font-size: 13px;
+	font-weight: 400;
+	font-variant-numeric: tabular-nums;
+}
+
+/* collapse arrow */
+#img-list .chev,
+#img-list .chev:hover {
+	width: 18px;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: #8a90a0;
+	font-size: 12px;
+	line-height: 1;
+}
+#img-list .chev:hover { color: #eee; }
+#img-list .chev { transition: transform .12s ease; }
+#img-list .grp.collapsed .chev { transform: rotate(-90deg); }
+
+/* items sit under a thin guide line */
+#img-list .grp-items {
+	margin: 0 0 6px 9px;
+	padding-left: 28px;
+	border-left: 1px solid rgba(255, 255, 255, .14);
+}
+#img-list .grp.collapsed .grp-items { display: none; }
+#img-list input[type="checkbox"] { accent-color: var(--ui-accent); cursor: pointer; }
 
 /* whole page area; layers are stacked inside it.
    --s / --tx / --ty = current view (scale and translation), set by the zoom code */
@@ -271,6 +372,17 @@ html, body {
 	</div>
 </div>
 
+<div id="sidebar" class="collapsed">   <!-- hidden by default -->
+	<button id="sidebar-toggle" type="button" title="Show / hide the image list">›</button>
+	<input type="search" id="img-search" placeholder="Search…" autocomplete="off" spellcheck="false">
+	<div class="sb-buttons">
+		<button id="show-all" type="button">Show All</button>
+		<button id="show-default" type="button">Show Default</button>
+		<button id="hide-all" type="button">Hide All</button>
+	</div>
+	<div id="img-list"></div>
+</div>
+
 <div id="chart">
 	<div id="grid"></div>
 	<div id="zero-line"></div>
@@ -291,7 +403,7 @@ const rawImages = [
 	{ src: "img/Igla Default",                        name: "Igla",        type: "Default",                   offset: 6.5,   height: 181.33, extra: 190,   spacing: "0px", version: "GL" },
 	{ src: "img/Igla Ardent Rose",                    name: "Igla",        type: "Ardent Rose",               offset: 10.44, height: 185.27, extra: 195.3, spacing: "0px", version: "GL" },
 	{ src: "img/Igla Dorm",                           name: "Igla",        type: "Dorm",                      offset: 6.5,   height: 181.33, extra: 184.7, spacing: "0px", version: "GL" },
-	{ src: "img/Calibration",                         name: "Calibration", type: "Calibration",               offset: 0,     height: 200,    extra: 0,     spacing: "0px",  version: "CH" },
+	//{ src: "img/Calibration",                         name: "Calibration", type: "Calibration",               offset: 0,     height: 200,    extra: 0,     spacing: "0px",  version: "CH" },
 	{ src: "img/Colphne Default",                     name: "Colphne",     type: "Default",                   offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
 	{ src: "img/Colphne Dorm",                        name: "Colphne",     type: "Dorm",                      offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
 	{ src: "img/Colphne's Training Outfit",           name: "Colphne",     type: "Colphne's Training Outfit", offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
@@ -638,7 +750,127 @@ spacingSlider.addEventListener("input", () => {
 	renderImages();   // re-places the images and the height lines with the new spacing
 });
 
+// ---------- UI: image list (left panel) ----------
+// Lists every image grouped by name, then by type. The order only affects the list,
+// not the images (the images use the sorting above).
+const sidebar       = document.getElementById("sidebar");
+const sidebarToggle = document.getElementById("sidebar-toggle");
+const listEl        = document.getElementById("img-list");
+const searchEl      = document.getElementById("img-search");
+const listGroups    = [];   // { nameLower, el, cb, items: [{ img, cb }] }
+
+function makeCheckbox(text) {
+	const label = document.createElement("label");
+	const cb = document.createElement("input");
+	cb.type = "checkbox";
+	const span = document.createElement("span");
+	span.textContent = text;
+	label.append(cb, span);
+	return { label, cb };
+}
+
+function buildList() {
+	const byName = new Map();
+	for (const img of images) {
+		if (!byName.has(img.name)) byName.set(img.name, []);
+		byName.get(img.name).push(img);
+	}
+
+	const frag = document.createDocumentFragment();
+	for (const name of [...byName.keys()].sort((a, b) => a.localeCompare(b))) {
+		const imgs = byName.get(name).sort((a, b) => a.type.localeCompare(b.type));
+
+		const el   = document.createElement("div");
+		el.className = "grp";
+		const row  = document.createElement("div");
+		row.className = "grp-head";
+		const chev = document.createElement("button");
+		chev.type = "button";
+		chev.className = "chev";
+		chev.textContent = "▾";
+		chev.title = "Collapse / expand";
+		const head = makeCheckbox(name);
+		head.label.className = "grp-name";
+		const count = document.createElement("span");   // shown / total
+		count.className = "count";
+		row.append(chev, head.label, count);
+		const body = document.createElement("div");
+		body.className = "grp-items";
+
+		chev.addEventListener("click", () => el.classList.toggle("collapsed"));
+
+		const group = { nameLower: name.toLowerCase(), el, cb: head.cb, count, items: [] };
+
+		// the group checkbox shows / hides every image of that name
+		head.cb.addEventListener("change", () => {
+			for (const img of imgs) img.visibility = head.cb.checked;
+			syncList();
+			renderImages();
+		});
+
+		for (const img of imgs) {
+			const item = makeCheckbox(img.type);
+			item.cb.addEventListener("change", () => {
+				img.visibility = item.cb.checked;
+				syncList();
+				renderImages();
+			});
+			body.appendChild(item.label);
+			group.items.push({ img, cb: item.cb });
+		}
+
+		el.append(row, body);
+		frag.appendChild(el);
+		listGroups.push(group);
+	}
+	listEl.appendChild(frag);
+}
+
+// makes the checkboxes match img.visibility (group: checked / partly / unchecked)
+function syncList() {
+	for (const g of listGroups) {
+		let shown = 0;
+		for (const item of g.items) {
+			item.cb.checked = item.img.visibility;
+			if (item.img.visibility) shown++;
+		}
+		g.cb.checked       = shown === g.items.length;
+		g.cb.indeterminate = shown > 0 && shown < g.items.length;
+		g.count.textContent = shown + "/" + g.items.length;
+	}
+}
+
+// sets visibility of every image with fn(img) -> boolean
+function setVisibilityAll(fn) {
+	for (const img of images) img.visibility = fn(img);
+	syncList();
+	renderImages();
+}
+
+document.getElementById("show-all").addEventListener("click",     () => setVisibilityAll(() => true));
+document.getElementById("hide-all").addEventListener("click",     () => setVisibilityAll(() => false));
+document.getElementById("show-default").addEventListener("click", () => setVisibilityAll(img => img.type.toLowerCase() === "default"));
+
+// search: only whole groups (by img.name) are filtered; just toggles a class, so it is instant
+searchEl.addEventListener("input", () => {
+	const q = searchEl.value.trim().toLowerCase();
+	for (const g of listGroups) g.el.classList.toggle("filtered", q !== "" && !g.nameLower.includes(q));
+});
+
+// collapse / expand the panel
+sidebarToggle.addEventListener("click", () => {
+	sidebar.classList.toggle("collapsed");
+	sidebarToggle.textContent = sidebar.classList.contains("collapsed") ? "›" : "‹";
+});
+
+// keep the panel right below the UI bar, which changes height when it wraps
+new ResizeObserver(() => {
+	document.documentElement.style.setProperty("--ui-h", document.getElementById("ui").offsetHeight + "px");
+}).observe(document.getElementById("ui"));
+
 // ---------- start ----------
+buildList();
+syncList();
 createElements();
 updateSortButton();
 updateReverseButton();
