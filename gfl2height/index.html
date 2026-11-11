@@ -12,7 +12,10 @@
 	--grid-display: true;
 	--height-display: true;
 	--label-display: true;
-	--spacing-global: 100px;
+	--spacing-global: 140px;
+	--spacing-global-min: 100px;
+	--spacing-global-max: 500px;
+	--spacing-img-min: 100px;
 	--rotation-max: 8;
 	--rotation-global: 1;
 	--zoom-min: -2;
@@ -28,8 +31,7 @@
 	--grid-thickness: 0.5px;
 
 	/* height display */
-	--height-line-min: 100px;
-	--height-line-margin: 80px;
+	--height-line-width: 90px;
 	--height-line-thickness: 1px;
 	--height-display-offset: 30px;
 }
@@ -52,8 +54,9 @@ html, body {
 	right: 0;
 	z-index: 100;
 	display: flex;
+	flex-wrap: wrap;           /* on small screens the groups wrap onto more rows */
 	align-items: center;
-	gap: 12px;
+	gap: 8px 12px;
 	padding: 8px 12px;
 	background: rgba(20, 21, 26, .9);
 	border-bottom: 1px solid rgba(255, 255, 255, .15);
@@ -75,8 +78,19 @@ html, body {
 	text-align: right;
 	font-variant-numeric: tabular-nums;
 }
-#ui #cursor-cm { margin-left: auto; min-width: 9ch; }
+#ui #cursor-cm { min-width: 9ch; }
 #ui #zoom-level { min-width: 4ch; }
+
+/* a group (label + its control) always wraps as one piece */
+#ui .group,
+#ui .rotate,
+#ui .spacing {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	white-space: nowrap;
+}
+#ui .group.right { margin-left: auto; gap: 12px; }   /* readouts stay at the right edge */
 
 /* "Customize" dropdown */
 #ui .dropdown { position: relative; }
@@ -111,11 +125,11 @@ html, body {
 	white-space: nowrap;
 }
 
-/* "Rotate" control: < Rotate > */
-#ui .rotate {
-	display: flex;
-	align-items: center;
-	gap: 6px;
+/* "Spacing" slider */
+#ui .spacing input[type="range"] {
+	width: 140px;
+	accent-color: #e8892b;
+	cursor: pointer;
 }
 
 /* whole page area; layers are stacked inside it.
@@ -217,15 +231,17 @@ html, body {
 <body>
 
 <div id="ui">
-	<span>Sort by</span>
-	<div class="dropdown" id="sort-menu">
-		<button class="dropdown-btn" id="sort-btn" type="button"></button>
-		<div class="panel">
-			<button class="option" type="button" data-value="height">Height</button>
-			<button class="option" type="button" data-value="name">Name</button>
+	<div class="group">
+		<span>Sort by</span>
+		<div class="dropdown" id="sort-menu">
+			<button class="dropdown-btn" id="sort-btn" type="button"></button>
+			<div class="panel">
+				<button class="option" type="button" data-value="height">Height</button>
+				<button class="option" type="button" data-value="name">Name</button>
+			</div>
 		</div>
+		<button id="sort-reverse" type="button"></button>
 	</div>
-	<button id="sort-reverse" type="button"></button>
 
 	<div class="dropdown" id="customize">
 		<button class="dropdown-btn" id="customize-btn" type="button">Customize ▾</button>
@@ -243,9 +259,16 @@ html, body {
 		<button id="rotate-next" type="button">&gt;</button>
 	</div>
 
-	<span id="cursor-cm" class="readout">—</span>
-	<button id="zoom-reset" type="button">Reset</button>
-	<span id="zoom-level" class="readout">100%</span>
+	<label class="spacing">
+		<span>Spacing</span>
+		<input type="range" id="spacing-slider" step="1">
+	</label>
+
+	<div class="group right">
+		<span id="cursor-cm" class="readout">—</span>
+		<button id="zoom-reset" type="button">Reset</button>
+		<span id="zoom-level" class="readout">100%</span>
+	</div>
 </div>
 
 <div id="chart">
@@ -265,16 +288,20 @@ function cssVar(name) {
 
 // ---------- raw image data ----------
 const rawImages = [
-	{ src: "img/Igla Default",                        name: "Igla",        type: "Default",                   offset: 6.5,   height: 181.33, extra: 190,   spacing: "150px", version: "GL" },
-	{ src: "img/Igla Ardent Rose",                    name: "Igla",        type: "Ardent Rose",               offset: 10.44, height: 185.27, extra: 195.3, spacing: "150px", version: "GL" },
-	{ src: "img/Igla Dorm",                           name: "Igla",        type: "Dorm",                      offset: 6.5,   height: 181.33, extra: 184.7, spacing: "150px", version: "GL" },
-	{ src: "img/Calibration",                         name: "Calibration", type: "Calibration",               offset: 0,     height: 200,    extra: 0,     spacing: "60px",  version: "CH" },
-	{ src: "img/Colphne Default",                     name: "Colphne",     type: "Default",                   offset: 4.4,   height: 140.57, extra: 145.8, spacing: "20px",  version: "GL" },
-	{ src: "img/Colphne Dorm",                        name: "Colphne",     type: "Dorm",                      offset: 4.4,   height: 140.57, extra: 145.8, spacing: "20px",  version: "GL" },
-	{ src: "img/Colphne's Training Outfit",           name: "Colphne",     type: "Colphne's Training Outfit", offset: 4.4,   height: 140.57, extra: 145.8, spacing: "20px",  version: "GL" },
-	{ src: "img/Colphne Silent Heart",                name: "Colphne",     type: "Silent Heart",              offset: 4.4,   height: 140.63, extra: 145.8, spacing: "20px",  version: "GL" },
-	{ src: "img/Colphne Doppelganger Default",        name: "Colphne",     type: "Doppelganger Default",      offset: 4.4,   height: 140.57, extra: 145.8, spacing: "20px",  version: "GL" },
-	{ src: "img/Colphne Doppelganger Dorm",           name: "Colphne",     type: "Doppelganger Dorm",         offset: 4.4,   height: 140.57, extra: 145.8, spacing: "20px",  version: "GL" },
+	{ src: "img/Igla Default",                        name: "Igla",        type: "Default",                   offset: 6.5,   height: 181.33, extra: 190,   spacing: "0px", version: "GL" },
+	{ src: "img/Igla Ardent Rose",                    name: "Igla",        type: "Ardent Rose",               offset: 10.44, height: 185.27, extra: 195.3, spacing: "0px", version: "GL" },
+	{ src: "img/Igla Dorm",                           name: "Igla",        type: "Dorm",                      offset: 6.5,   height: 181.33, extra: 184.7, spacing: "0px", version: "GL" },
+	{ src: "img/Calibration",                         name: "Calibration", type: "Calibration",               offset: 0,     height: 200,    extra: 0,     spacing: "0px",  version: "CH" },
+	{ src: "img/Colphne Default",                     name: "Colphne",     type: "Default",                   offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
+	{ src: "img/Colphne Dorm",                        name: "Colphne",     type: "Dorm",                      offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
+	{ src: "img/Colphne's Training Outfit",           name: "Colphne",     type: "Colphne's Training Outfit", offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
+	{ src: "img/Colphne Silent Heart",                name: "Colphne",     type: "Silent Heart",              offset: 4.4,   height: 140.63, extra: 145.8, spacing: "0px",  version: "GL" },
+	{ src: "img/Colphne Doppelganger Default",        name: "Colphne",     type: "Doppelganger Default",      offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
+	{ src: "img/Colphne Doppelganger Dorm",           name: "Colphne",     type: "Doppelganger Dorm",         offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
+	{ src: "img/Voymastina Default",                  name: "Voymastina",  type: "Default",                   offset: 6.5,   height: 181.05, extra: 145.8, spacing: "0px",  version: "GL" },
+	{ src: "img/Voymastina Dorm",                     name: "Voymastina",  type: "Dorm",                      offset: 6.5,   height: 181.05, extra: 145.8, spacing: "0px",  version: "GL" },
+	{ src: "img/Voymastina Erwin",                    name: "Voymastina",  type: "Erwin",                     offset: 2.75,   height: 177.29, extra: 145.8, spacing: "0px",  version: "GL" }, 
+	{ src: "img/Voymastina B-ROBO Voymawari",         name: "Voymastina",  type: "B-ROBO Voymawari",          offset: 2.6,   height: 177.15, extra: 145.8, spacing: "0px",  version: "GL" }, 
 ];
 
 // ---------- final data: raw data + added properties ----------
@@ -332,6 +359,7 @@ function createElements() {
 // only places the existing elements, in the current sort order
 function renderImages() {
 	const spacingG   = parseFloat(cssVar("--spacing-global"));
+	const spacingMin = parseFloat(cssVar("--spacing-img-min"));
 	const pxPerCm    = parseFloat(cssVar("--px-per-cm"));
 	const useOffset  = cssVar("--offset-display") === "true";
 
@@ -347,7 +375,8 @@ function renderImages() {
 		el.style.setProperty("--img-offset", useOffset ? img.offset * pxPerCm + "px" : "0px");
 		el.style.left = x + "px";
 		placed.push({ img, el, x });
-		x += spacingG + parseFloat(img.spacing);   // images may overlap
+		// distance to the next image, never smaller than --spacing-img-min
+		x += Math.max(spacingMin, spacingG + parseFloat(img.spacing));
 	}
 
 	renderHeights(placed);
@@ -367,15 +396,12 @@ function renderHeights(placed) {
 
 	const zeroY    = parseFloat(cssVar("--zero-y"));
 	const pxPerCm  = parseFloat(cssVar("--px-per-cm"));
-	const spacingG = parseFloat(cssVar("--spacing-global"));
-	const lineMin  = parseFloat(cssVar("--height-line-min"));
-	const margin   = parseFloat(cssVar("--height-line-margin"));
-	const shiftX   = parseFloat(cssVar("--height-display-offset"));
+	const width    = parseFloat(cssVar("--height-line-width"));
+	const shiftX  = parseFloat(cssVar("--height-display-offset"));
 	const format   = cssVar("--format");
 
 	for (const { img, el, x } of placed) {
 		const cm    = currentHeight(img);
-		const width = Math.max(lineMin, spacingG + parseFloat(img.spacing) - margin);
 		const center = x + el.offsetWidth / 2;   // centered on the image
 
 		const hline = document.createElement("div");
@@ -599,6 +625,18 @@ function rotateImages(step) {
 
 document.getElementById("rotate-prev").addEventListener("click", () => rotateImages(-1));
 document.getElementById("rotate-next").addEventListener("click", () => rotateImages(+1));
+
+// ---------- UI: spacing slider ----------
+// ranges from --spacing-global-min to --spacing-global-max, starts at --spacing-global
+const spacingSlider = document.getElementById("spacing-slider");
+spacingSlider.min   = parseFloat(cssVar("--spacing-global-min"));
+spacingSlider.max   = parseFloat(cssVar("--spacing-global-max"));
+spacingSlider.value = parseFloat(cssVar("--spacing-global"));
+
+spacingSlider.addEventListener("input", () => {
+	document.documentElement.style.setProperty("--spacing-global", spacingSlider.value + "px");
+	renderImages();   // re-places the images and the height lines with the new spacing
+});
 
 // ---------- start ----------
 createElements();
