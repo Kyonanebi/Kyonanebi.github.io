@@ -120,13 +120,68 @@ html, body {
 }
 #ui .dropdown .panel .option:hover { background: #2e3140; }
 #ui .dropdown .panel .option.active { background: rgba(255, 255, 255, .12); }
-#ui .toggle {
+/* two-sided switch:  LEFT | label | RIGHT   (the active side is highlighted) */
+#ui .switch {
+	position: relative;
 	display: flex;
-	align-items: center;
-	gap: 8px;
+	align-items: stretch;
+	padding: 3px;
+	border: 1px solid rgba(255, 255, 255, .12);
+	border-radius: 4px;   /* same as the buttons and dropdowns */
+	background: #181a20;
+	box-shadow: inset 0 2px 4px rgba(0, 0, 0, .55);
 	cursor: pointer;
 	white-space: nowrap;
+	user-select: none;
+	transition: border-color .15s ease;
 }
+#ui .switch:hover { border-color: rgba(255, 255, 255, .28); }
+#ui .switch:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+
+/* the sliding highlight; position and size are set by makeSwitch() */
+#ui .switch .thumb {
+	position: absolute;
+	top: 3px;
+	bottom: 3px;
+	left: 0;
+	width: 0;
+	border-radius: 3px;
+	background: linear-gradient(180deg, #8cc4ff, var(--ui-accent));
+	box-shadow: 0 0 12px rgba(106, 176, 255, .5), inset 0 1px 0 rgba(255, 255, 255, .45);
+	transition: transform .24s cubic-bezier(.3, .7, .2, 1), width .24s cubic-bezier(.3, .7, .2, 1),
+	            background .2s ease, box-shadow .2s ease;
+}
+/* a switch whose left side means "off": the highlight turns grey there */
+#ui .switch.dim-left:not(.on) .thumb {
+	background: linear-gradient(180deg, #5b6172, #474c5b);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18);
+}
+
+#ui .switch .side,
+#ui .switch .mid {
+	position: relative;   /* above the thumb */
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 3px 12px;
+}
+#ui .switch .side {
+	min-width: 2.4em;
+	border-radius: 3px;
+	color: #6f7686;
+	font-weight: 600;
+	letter-spacing: .04em;
+	transition: color .2s ease;
+}
+#ui .switch .side:hover { color: #c5cad6; }
+#ui .switch .mid { flex: 1; padding: 3px 14px; color: #e8eaf0; }
+#ui .switch:not(.on) .left,
+#ui .switch.on .right,
+#ui .switch:not(.on) .left:hover,
+#ui .switch.on .right:hover { color: #0b1a2e; }
+#ui .switch.dim-left:not(.on) .left,
+#ui .switch.dim-left:not(.on) .left:hover { color: #e8eaf0; }
 
 /* "Spacing" slider */
 #ui .spacing input[type="range"] {
@@ -259,7 +314,8 @@ html, body {
 	/* horizontal lines start at the 0cm line and repeat both up and down */
 	background-position: var(--tx) calc(var(--ty) + var(--zero-y) * var(--s));
 }
-#grid.hidden { display: none; }
+#grid.hidden,
+#zero-line.hidden { display: none; }
 
 /* layer 2: green 0cm line, always spans the whole screen */
 #zero-line {
@@ -347,10 +403,26 @@ html, body {
 	<div class="dropdown" id="customize">
 		<button class="dropdown-btn" id="customize-btn" type="button">Customize ▾</button>
 		<div class="panel">
-			<label class="toggle">
-				<input type="checkbox" id="toggle-offset">
-				Shoe offset
-			</label>
+			<div class="switch dim-left" id="switch-offset" role="switch" tabindex="0" aria-checked="false">
+				<span class="side left">OFF</span>
+				<span class="mid">Shoe offset</span>
+				<span class="side right">ON</span>
+			</div>
+			<div class="switch" id="switch-version" role="switch" tabindex="0" aria-checked="false">
+				<span class="side left">GL</span>
+				<span class="mid">CN server dolls</span>
+				<span class="side right">CH</span>
+			</div>
+			<div class="switch dim-left" id="switch-grid" role="switch" tabindex="0" aria-checked="false">
+				<span class="side left">OFF</span>
+				<span class="mid">Display grid</span>
+				<span class="side right">ON</span>
+			</div>
+			<div class="switch dim-left" id="switch-height" role="switch" tabindex="0" aria-checked="false">
+				<span class="side left">OFF</span>
+				<span class="mid">Display height</span>
+				<span class="side right">ON</span>
+			</div>
 		</div>
 	</div>
 
@@ -400,27 +472,34 @@ function cssVar(name) {
 
 // ---------- raw image data ----------
 const rawImages = [
-	{ src: "img/Igla Default",                        name: "Igla",        type: "Default",                   offset: 6.5,   height: 181.33, extra: 190,   spacing: "0px", version: "GL" },
-	{ src: "img/Igla Ardent Rose",                    name: "Igla",        type: "Ardent Rose",               offset: 10.44, height: 185.27, extra: 195.3, spacing: "0px", version: "GL" },
-	{ src: "img/Igla Dorm",                           name: "Igla",        type: "Dorm",                      offset: 6.5,   height: 181.33, extra: 184.7, spacing: "0px", version: "GL" },
-	//{ src: "img/Calibration",                         name: "Calibration", type: "Calibration",               offset: 0,     height: 200,    extra: 0,     spacing: "0px",  version: "CH" },
+	{ src: "img/Igla Default",                        name: "Igla",        type: "Default",                   offset: 6.5,   height: 181.33, extra: 190,   spacing: "0px",  version: "CH" },
+	{ src: "img/Igla Ardent Rose",                    name: "Igla",        type: "Ardent Rose",               offset: 10.44, height: 185.27, extra: 195.3, spacing: "0px",  version: "CH" },
+	{ src: "img/Igla Dorm",                           name: "Igla",        type: "Dorm",                      offset: 6.5,   height: 181.33, extra: 184.7, spacing: "0px",  version: "CH" },
+ // { src: "img/Calibration",                         name: "Calibration", type: "Calibration",               offset: 0,     height: 200,    extra: 0,     spacing: "0px",  version: "CH" },
 	{ src: "img/Colphne Default",                     name: "Colphne",     type: "Default",                   offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
 	{ src: "img/Colphne Dorm",                        name: "Colphne",     type: "Dorm",                      offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
 	{ src: "img/Colphne's Training Outfit",           name: "Colphne",     type: "Colphne's Training Outfit", offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
 	{ src: "img/Colphne Silent Heart",                name: "Colphne",     type: "Silent Heart",              offset: 4.4,   height: 140.63, extra: 145.8, spacing: "0px",  version: "GL" },
-	{ src: "img/Colphne Doppelganger Default",        name: "Colphne",     type: "Doppelganger Default",      offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
-	{ src: "img/Colphne Doppelganger Dorm",           name: "Colphne",     type: "Doppelganger Dorm",         offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
+	{ src: "img/Colphne Doppelganger Default",        name: "Colphne",     type: "Doppelganger Default",      offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "CH" },
+	{ src: "img/Colphne Doppelganger Dorm",           name: "Colphne",     type: "Doppelganger Dorm",         offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "CH" },
 	{ src: "img/Voymastina Default",                  name: "Voymastina",  type: "Default",                   offset: 6.5,   height: 181.05, extra: 145.8, spacing: "0px",  version: "GL" },
 	{ src: "img/Voymastina Dorm",                     name: "Voymastina",  type: "Dorm",                      offset: 6.5,   height: 181.05, extra: 145.8, spacing: "0px",  version: "GL" },
-	{ src: "img/Voymastina Erwin",                    name: "Voymastina",  type: "Erwin",                     offset: 2.75,   height: 177.29, extra: 145.8, spacing: "0px",  version: "GL" }, 
+	{ src: "img/Voymastina Erwin",                    name: "Voymastina",  type: "Erwin",                     offset: 2.75,  height: 177.29, extra: 145.8, spacing: "0px",  version: "GL" }, 
 	{ src: "img/Voymastina B-ROBO Voymawari",         name: "Voymastina",  type: "B-ROBO Voymawari",          offset: 2.6,   height: 177.15, extra: 145.8, spacing: "0px",  version: "GL" }, 
 ];
+
+// which images belong to the current --version:
+// "GL" = only the GL images, "CH" = everything (GL + CH)
+function versionAllows(img) {
+	const v = cssVar("--version");
+	return v === "CH" || img.version === v;
+}
 
 // ---------- final data: raw data + added properties ----------
 const images = rawImages.map(img => ({
 	...img,
 	rotation:   parseFloat(cssVar("--rotation-global")),
-	visibility: img.version === cssVar("--version"),
+	visibility: versionAllows(img),
 }));
 
 // ---------- sorting ----------
@@ -700,7 +779,6 @@ sortReverse.addEventListener("click", () => {
 
 // ---------- UI: dropdowns (sort + customize) ----------
 const dropdowns    = document.querySelectorAll("#ui .dropdown");
-const offsetToggle = document.getElementById("toggle-offset");
 
 for (const dd of dropdowns) {
 	dd.querySelector(".dropdown-btn").addEventListener("click", () => {
@@ -714,11 +792,80 @@ document.addEventListener("pointerdown", e => {
 	for (const dd of dropdowns) if (!dd.contains(e.target)) dd.classList.remove("open");
 });
 
-// "Shoe offset" controls --offset-display; heights change, so re-sort and redraw
-offsetToggle.checked = cssVar("--offset-display") === "true";
-offsetToggle.addEventListener("change", () => {
-	document.documentElement.style.setProperty("--offset-display", offsetToggle.checked ? "true" : "false");
+// ---------- UI: two-sided switches (in Customize) ----------
+// el = the .switch element. A click on the left / right side picks that side, a click on
+// the label in the middle flips it. onChange(isRight) is called when the side changes.
+function makeSwitch(el, isRight, onChange) {
+	let right = false;
+
+	// the sliding highlight sits behind the active side
+	const thumb = document.createElement("span");
+	thumb.className = "thumb";
+	el.prepend(thumb);
+	function placeThumb() {
+		const side = el.querySelector(right ? ".right" : ".left");
+		if (!side.offsetWidth) return;   // not visible yet (panel closed)
+		const first = !thumb.style.width;
+		if (first) thumb.style.transition = "none";   // no slide-in on the very first placement
+		thumb.style.width = side.offsetWidth + "px";
+		thumb.style.transform = "translateX(" + side.offsetLeft + "px)";
+		if (first) { thumb.offsetWidth; thumb.style.transition = ""; }
+	}
+	// also runs when the panel opens and the switch gets its size
+	new ResizeObserver(placeThumb).observe(el);
+
+	function set(value) {
+		right = value;
+		el.classList.toggle("on", right);
+		el.setAttribute("aria-checked", String(right));
+		placeThumb();
+	}
+	function pick(value) {
+		if (value === right) return;
+		set(value);
+		onChange(right);
+	}
+	el.addEventListener("click", e => {
+		if (e.target.closest(".left"))       pick(false);
+		else if (e.target.closest(".right")) pick(true);
+		else                                 pick(!right);
+	});
+	el.addEventListener("keydown", e => {
+		if (e.key === " " || e.key === "Enter") { e.preventDefault(); pick(!right); }
+	});
+	set(isRight);   // initial state, no onChange
+}
+
+// OFF | Shoe offset | ON  -> --offset-display; heights change, so re-sort and redraw
+makeSwitch(document.getElementById("switch-offset"), cssVar("--offset-display") === "true", on => {
+	document.documentElement.style.setProperty("--offset-display", on ? "true" : "false");
 	applySort();
+});
+
+// OFF | Display grid | ON  -> --grid-display: hides the grid and the green 0cm line
+function applyGridDisplay() {
+	const on = cssVar("--grid-display") === "true";
+	document.getElementById("grid").classList.toggle("hidden", !on);
+	document.getElementById("zero-line").classList.toggle("hidden", !on);
+}
+makeSwitch(document.getElementById("switch-grid"), cssVar("--grid-display") === "true", on => {
+	document.documentElement.style.setProperty("--grid-display", on ? "true" : "false");
+	applyGridDisplay();
+});
+applyGridDisplay();
+
+// OFF | Display height | ON  -> --height-display: hides the orange lines and their text
+makeSwitch(document.getElementById("switch-height"), cssVar("--height-display") === "true", on => {
+	document.documentElement.style.setProperty("--height-display", on ? "true" : "false");
+	document.getElementById("heights").style.display = on ? "" : "none";
+});
+
+// GL | CN server dolls | CH  -> --version
+// GL: only the GL images (CH ones are not listed). CH: all images (GL + CH).
+makeSwitch(document.getElementById("switch-version"), cssVar("--version") === "CH", ch => {
+	document.documentElement.style.setProperty("--version", ch ? '"CH"' : '"GL"');
+	rebuildList();
+	setVisibilityAll(() => true);   // shows everything that this version allows
 });
 
 // ---------- UI: rotate ----------
@@ -758,6 +905,7 @@ const sidebarToggle = document.getElementById("sidebar-toggle");
 const listEl        = document.getElementById("img-list");
 const searchEl      = document.getElementById("img-search");
 const listGroups    = [];   // { nameLower, el, cb, items: [{ img, cb }] }
+const collapsedNames = new Set();   // groups the user collapsed (kept when the list is rebuilt)
 
 function makeCheckbox(text) {
 	const label = document.createElement("label");
@@ -771,7 +919,7 @@ function makeCheckbox(text) {
 
 function buildList() {
 	const byName = new Map();
-	for (const img of images) {
+	for (const img of images.filter(versionAllows)) {   // other versions are not listed
 		if (!byName.has(img.name)) byName.set(img.name, []);
 		byName.get(img.name).push(img);
 	}
@@ -797,7 +945,12 @@ function buildList() {
 		const body = document.createElement("div");
 		body.className = "grp-items";
 
-		chev.addEventListener("click", () => el.classList.toggle("collapsed"));
+		if (collapsedNames.has(name)) el.classList.add("collapsed");
+		chev.addEventListener("click", () => {
+			el.classList.toggle("collapsed");
+			if (el.classList.contains("collapsed")) collapsedNames.add(name);
+			else collapsedNames.delete(name);
+		});
 
 		const group = { nameLower: name.toLowerCase(), el, cb: head.cb, count, items: [] };
 
@@ -841,8 +994,9 @@ function syncList() {
 }
 
 // sets visibility of every image with fn(img) -> boolean
+// (images of other versions stay hidden)
 function setVisibilityAll(fn) {
-	for (const img of images) img.visibility = fn(img);
+	for (const img of images) img.visibility = versionAllows(img) && fn(img);
 	syncList();
 	renderImages();
 }
@@ -852,10 +1006,20 @@ document.getElementById("hide-all").addEventListener("click",     () => setVisib
 document.getElementById("show-default").addEventListener("click", () => setVisibilityAll(img => img.type.toLowerCase() === "default"));
 
 // search: only whole groups (by img.name) are filtered; just toggles a class, so it is instant
-searchEl.addEventListener("input", () => {
+function applySearch() {
 	const q = searchEl.value.trim().toLowerCase();
 	for (const g of listGroups) g.el.classList.toggle("filtered", q !== "" && !g.nameLower.includes(q));
-});
+}
+searchEl.addEventListener("input", applySearch);
+
+// rebuilds the list, e.g. after the version changed (keeps search text and collapsed groups)
+function rebuildList() {
+	listEl.innerHTML = "";
+	listGroups.length = 0;
+	buildList();
+	syncList();
+	applySearch();
+}
 
 // collapse / expand the panel
 sidebarToggle.addEventListener("click", () => {
