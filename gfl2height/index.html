@@ -34,6 +34,7 @@
 	--height-line-width: 90px;
 	--height-line-thickness: 1px;
 	--height-display-offset: 30px;
+	--extra-line-tick: 12px;   /* how far the blue (extra height) line goes up at its left edge */
 
 	/* look */
 	--ui-accent: #6ab0ff;   /* checkboxes and slider */
@@ -129,7 +130,6 @@ html, body {
 	border: 1px solid rgba(255, 255, 255, .12);
 	border-radius: 4px;   /* same as the buttons and dropdowns */
 	background: #181a20;
-	box-shadow: inset 0 2px 4px rgba(0, 0, 0, .55);
 	cursor: pointer;
 	white-space: nowrap;
 	user-select: none;
@@ -354,12 +354,14 @@ html, body {
 /* layer 4: height info. This layer is NOT scaled as a whole: each .hline is positioned
    from its world coordinates (--x, --y, --w) with the zoom applied by hand, so the line
    thickness and the text size stay constant on screen. */
-#heights {
+#heights,
+#extras {
 	position: absolute;
 	inset: 0;
 	pointer-events: none;
 }
-#heights .hline {
+#heights .hline,
+#extras .hline {
 	position: absolute;
 	left:  calc(var(--tx) + var(--x) * var(--s));
 	top:   calc(var(--ty) + var(--y) * var(--s));
@@ -382,6 +384,38 @@ html, body {
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 	color: rgb(255, 150, 30);
+}
+
+/* layer 5: extra height (light blue). Same idea and same x position as layer 4, but the
+   line goes up a little at its right end, with the text above it, aligned right:
+
+                   text
+                      |
+         _____________|                                                       */
+#extras .hline .line {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	height: var(--height-line-thickness);
+	background: rgba(130, 205, 255, .55);
+}
+#extras .hline .tick {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	width: var(--height-line-thickness);
+	height: calc(var(--extra-line-tick) * var(--s));   /* scales with the zoom like the line width */
+	background: rgba(130, 205, 255, .55);
+}
+#extras .hline .label {
+	position: absolute;
+	right: 0;
+	bottom: calc(var(--extra-line-tick) * var(--s) + 3px);   /* sits on top of the tick */
+	font: 14px sans-serif;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	color: rgb(140, 210, 255);
 }
 </style>
 </head>
@@ -460,6 +494,7 @@ html, body {
 	<div id="zero-line"></div>
 	<div id="images"></div>
 	<div id="heights"></div>
+	<div id="extras"></div>
 </div>
 
 <script>
@@ -472,20 +507,30 @@ function cssVar(name) {
 
 // ---------- raw image data ----------
 const rawImages = [
-	{ src: "img/Igla Default",                        name: "Igla",        type: "Default",                   offset: 6.5,   height: 181.33, extra: 190,   spacing: "0px",  version: "CH" },
-	{ src: "img/Igla Ardent Rose",                    name: "Igla",        type: "Ardent Rose",               offset: 10.44, height: 185.27, extra: 195.3, spacing: "0px",  version: "CH" },
-	{ src: "img/Igla Dorm",                           name: "Igla",        type: "Dorm",                      offset: 6.5,   height: 181.33, extra: 184.7, spacing: "0px",  version: "CH" },
-  //{ src: "img/Calibration",                         name: "Calibration", type: "Calibration",               offset: 0,     height: 200,    extra: 0,     spacing: "0px",  version: "CH" },
-	{ src: "img/Colphne Default",                     name: "Colphne",     type: "Default",                   offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
-	{ src: "img/Colphne Dorm",                        name: "Colphne",     type: "Dorm",                      offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
-	{ src: "img/Colphne's Training Outfit",           name: "Colphne",     type: "Colphne's Training Outfit", offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "GL" },
-	{ src: "img/Colphne Silent Heart",                name: "Colphne",     type: "Silent Heart",              offset: 4.4,   height: 140.63, extra: 145.8, spacing: "0px",  version: "GL" },
-	{ src: "img/Colphne Doppelganger Default",        name: "Colphne",     type: "Doppelganger Default",      offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "CH" },
-	{ src: "img/Colphne Doppelganger Dorm",           name: "Colphne",     type: "Doppelganger Dorm",         offset: 4.4,   height: 140.57, extra: 145.8, spacing: "0px",  version: "CH" },
-	{ src: "img/Voymastina Default",                  name: "Voymastina",  type: "Default",                   offset: 6.5,   height: 181.05, extra: 145.8, spacing: "0px",  version: "GL" },
-	{ src: "img/Voymastina Dorm",                     name: "Voymastina",  type: "Dorm",                      offset: 6.5,   height: 181.05, extra: 145.8, spacing: "0px",  version: "GL" },
-	{ src: "img/Voymastina Erwin",                    name: "Voymastina",  type: "Erwin",                     offset: 2.75,  height: 177.29, extra: 145.8, spacing: "0px",  version: "GL" }, 
-	{ src: "img/Voymastina B-ROBO Voymawari",         name: "Voymastina",  type: "B-ROBO Voymawari",          offset: 2.6,   height: 177.15, extra: 145.8, spacing: "0px",  version: "GL" }, 
+	{ src: "img/Igla Default",                        name: "Igla",        type: "Default",                   offset: 6.5,   height: 181.33, extra: 0,      spacing: "0px",  version: "CH" },
+	{ src: "img/Igla Ardent Rose",                    name: "Igla",        type: "Ardent Rose",               offset: 10.44, height: 185.27, extra: 0,      spacing: "0px",  version: "CH" },
+	{ src: "img/Igla Dorm",                           name: "Igla",        type: "Dorm",                      offset: 6.5,   height: 181.33, extra: 0,      spacing: "0px",  version: "CH" },
+  //{ src: "img/Calibration",                         name: "Calibration", type: "Calibration",               offset: 0,     height: 200,    extra: 0,      spacing: "0px",  version: "CH" },
+	{ src: "img/Colphne Default",                     name: "Colphne",     type: "Default",                   offset: 4.4,   height: 140.57, extra: 0,      spacing: "0px",  version: "GL" },
+	{ src: "img/Colphne Dorm",                        name: "Colphne",     type: "Dorm",                      offset: 4.4,   height: 140.57, extra: 0,      spacing: "0px",  version: "GL" },
+	{ src: "img/Colphne's Training Outfit",           name: "Colphne",     type: "Colphne's Training Outfit", offset: 4.4,   height: 140.57, extra: 0,      spacing: "0px",  version: "GL" },
+	{ src: "img/Colphne Silent Heart",                name: "Colphne",     type: "Silent Heart",              offset: 4.4,   height: 140.63, extra: 0,      spacing: "0px",  version: "GL" },
+	{ src: "img/Colphne Doppelganger Default",        name: "Colphne",     type: "Doppelganger Default",      offset: 4.4,   height: 140.57, extra: 0,      spacing: "0px",  version: "CH" },
+	{ src: "img/Colphne Doppelganger Dorm",           name: "Colphne",     type: "Doppelganger Dorm",         offset: 4.4,   height: 140.57, extra: 0,      spacing: "0px",  version: "CH" },
+	{ src: "img/Voymastina Default",                  name: "Voymastina",  type: "Default",                   offset: 6.5,   height: 181.05, extra: 0,      spacing: "0px",  version: "GL" },
+	{ src: "img/Voymastina Dorm",                     name: "Voymastina",  type: "Dorm",                      offset: 6.5,   height: 181.05, extra: 0,      spacing: "0px",  version: "GL" },
+	{ src: "img/Voymastina Erwin",                    name: "Voymastina",  type: "Erwin",                     offset: 2.75,  height: 177.29, extra: 0,      spacing: "0px",  version: "GL" }, 
+	{ src: "img/Voymastina B-ROBO Voymawari",         name: "Voymastina",  type: "B-ROBO Voymawari",          offset: 2.6,   height: 177.15, extra: 0,      spacing: "0px",  version: "GL" }, 
+	{ src: "img/Faelynn Default",                     name: "Faelynn",     type: "Default",                   offset: 10.26, height: 145.45, extra: 155.39, spacing: "0px",  version: "GL" }, 
+	{ src: "img/Faelynn Dorm",                        name: "Faelynn",     type: "Dorm",                      offset: 4.7,   height: 139.85, extra: 149.79, spacing: "0px",  version: "GL" }, 
+	{ src: "img/Faelynn Sunkissed Shimmer",           name: "Faelynn",     type: "Sunkissed Shimmer",         offset: 0,     height: 135.15, extra: 145.09, spacing: "0px",  version: "GL" }, 
+	{ src: "img/Klukai Default",                      name: "Klukai",      type: "Default",                   offset: 5.3,   height: 150.93, extra: 0,      spacing: "0px",  version: "GL" }, 
+	{ src: "img/Klukai Dorm",                         name: "Klukai",      type: "Dorm",                      offset: 5.3,   height: 150.93, extra: 0,      spacing: "0px",  version: "GL" }, 
+	{ src: "img/Klukai Astral Luminous",              name: "Klukai",      type: "Astral Luminous",           offset: 5.3,   height: 150.71, extra: 0,      spacing: "0px",  version: "GL" }, 
+	{ src: "img/Klukai Speed Star",                   name: "Klukai",      type: "Speed Star",                offset: 5.3,   height: 150.93, extra: 0,      spacing: "0px",  version: "GL" }, 
+	{ src: "img/Klukai Cerulean Breaker",             name: "Klukai",      type: "Cerulean Breaker",          offset: 2.65,  height: 148.78, extra: 0,      spacing: "0px",  version: "GL" }, 
+	{ src: "img/Klukai Indigo Oath",                  name: "Klukai",      type: "Indigo Oath",               offset: 5.3,   height: 151.35, extra: 0,      spacing: "0px",  version: "GL" }, 
+	{ src: "img/Klukai Immaculate Service",           name: "Klukai",      type: "Immaculate Service",        offset: 5.3,   height: 151.15, extra: 0,      spacing: "0px",  version: "GL" }, 
 ];
 
 // which images belong to the current --version:
@@ -571,6 +616,7 @@ function renderImages() {
 	}
 
 	renderHeights(placed);
+	renderExtras(placed);
 }
 
 // current height of an image in cm: height, minus offset if --offset-display is true
@@ -610,6 +656,50 @@ function renderHeights(placed) {
 		label.textContent = cm.toFixed(1) + " " + format;
 
 		hline.append(line, label);
+		layer.appendChild(hline);
+	}
+}
+
+// extra height layer (light blue): only for images where img.extra is not 0.
+// Works like renderHeights(): same offset rule, same width, same show/hide switch,
+// and sits at exactly the same x position; only its shape differs (tick at the right end).
+function currentExtra(img) {
+	return cssVar("--offset-display") === "true" ? img.extra - img.offset : img.extra;
+}
+
+function renderExtras(placed) {
+	const layer = document.getElementById("extras");
+	layer.innerHTML = "";
+	layer.style.display = cssVar("--height-display") === "true" ? "" : "none";
+
+	const zeroY   = parseFloat(cssVar("--zero-y"));
+	const pxPerCm = parseFloat(cssVar("--px-per-cm"));
+	const width   = parseFloat(cssVar("--height-line-width"));
+	const shiftX  = parseFloat(cssVar("--height-display-offset"));
+	const format  = cssVar("--format");
+
+	for (const { img, el, x } of placed) {
+		if (!img.extra) continue;   // 0 = no extra height
+		const cm     = currentExtra(img);
+		const center = x + el.offsetWidth / 2;   // centered on the image
+
+		const hline = document.createElement("div");
+		hline.className = "hline";
+		hline.style.setProperty("--x", center - width / 2 + shiftX + "px");   // exactly the same x as the orange line
+		hline.style.setProperty("--y", zeroY - cm * pxPerCm + "px");
+		hline.style.setProperty("--w", width + "px");
+
+		const line = document.createElement("div");
+		line.className = "line";
+
+		const tick = document.createElement("div");
+		tick.className = "tick";
+
+		const label = document.createElement("div");
+		label.className = "label";
+		label.textContent = cm.toFixed(1) + " " + format;
+
+		hline.append(line, tick, label);
 		layer.appendChild(hline);
 	}
 }
@@ -858,6 +948,7 @@ applyGridDisplay();
 makeSwitch(document.getElementById("switch-height"), cssVar("--height-display") === "true", on => {
 	document.documentElement.style.setProperty("--height-display", on ? "true" : "false");
 	document.getElementById("heights").style.display = on ? "" : "none";
+	document.getElementById("extras").style.display  = on ? "" : "none";
 });
 
 // GL | CN server dolls | CH  -> --version
