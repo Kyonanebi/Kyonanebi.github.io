@@ -300,19 +300,14 @@ html, body {
 	touch-action: none;
 }
 
-/* layer 1: grey grid, anchored to the green 0cm line, follows the zoom */
+/* layer 1: grey grid, anchored to the green 0cm line, follows the zoom.
+   It is a canvas drawn by drawGrid(): CSS gradients with fractional tile sizes skip or
+   flicker lines in Firefox, the canvas puts every line on a whole device pixel. */
 #grid {
-	--grid-size: calc(var(--grid-cm) * var(--px-per-cm) * var(--s) * 1px);
-	--line: var(--grid-thickness);   /* constant on screen, not affected by zoom */
-	--grid-color: rgba(255, 255, 255, .15);
 	position: absolute;
 	inset: 0;
-	background-image:
-		linear-gradient(to bottom, var(--grid-color) var(--line), transparent var(--line)),
-		linear-gradient(to right,  var(--grid-color) var(--line), transparent var(--line));
-	background-size: var(--grid-size) var(--grid-size);
-	/* horizontal lines start at the 0cm line and repeat both up and down */
-	background-position: var(--tx) calc(var(--ty) + var(--zero-y) * var(--s));
+	width: 100%;
+	height: 100%;
 }
 #grid.hidden,
 #zero-line.hidden { display: none; }
@@ -490,7 +485,7 @@ html, body {
 </div>
 
 <div id="chart">
-	<div id="grid"></div>
+	<canvas id="grid"></canvas>
 	<div id="zero-line"></div>
 	<div id="images"></div>
 	<div id="heights"></div>
@@ -716,10 +711,57 @@ const chart = document.getElementById("chart");
 let scale = 1, tx = 0, ty = 0;    // zoom scale (1 = 100%) and translation (px) of the view
 let mouse = null;                  // last cursor position
 
+// ---------- grid (canvas) ----------
+// vertical lines every --grid-cm * --px-per-cm * zoom, starting at the left edge of the
+// world; horizontal lines start at the green 0cm line and repeat up and down.
+// Every line is snapped to a whole device pixel so none are skipped while panning.
+const gridCanvas = document.getElementById("grid");
+const gridCtx    = gridCanvas.getContext("2d");
+let gridKey = "";   // what was drawn last; skips redrawing when nothing changed
+
+function drawGrid() {
+	if (gridCanvas.classList.contains("hidden")) { gridKey = ""; return; }
+
+	const dpr = window.devicePixelRatio || 1;
+	const w   = chart.clientWidth;
+	const h   = chart.clientHeight;
+	const key = [w, h, dpr, tx, ty, scale, cssVar("--grid-cm"), cssVar("--px-per-cm"),
+	             cssVar("--zero-y"), cssVar("--grid-thickness")].join("|");
+	if (key === gridKey) return;
+	gridKey = key;
+
+	const bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+	if (gridCanvas.width !== bw || gridCanvas.height !== bh) {
+		gridCanvas.width = bw;   // (also clears the canvas)
+		gridCanvas.height = bh;
+	}
+
+	// work in device pixels
+	const step  = parseFloat(cssVar("--grid-cm")) * parseFloat(cssVar("--px-per-cm")) * scale * dpr;
+	const thick = Math.max(1, Math.round(parseFloat(cssVar("--grid-thickness")) * dpr));
+	const x0    = tx * dpr;
+	const y0    = (ty + parseFloat(cssVar("--zero-y")) * scale) * dpr;
+
+	gridCtx.setTransform(1, 0, 0, 1, 0, 0);
+	gridCtx.clearRect(0, 0, bw, bh);
+	if (!(step > 2)) return;   // far too dense / invalid
+	gridCtx.fillStyle = "rgba(255, 255, 255, .15)";
+
+	for (let x = x0 + Math.ceil((0 - x0) / step) * step; x < bw; x += step) {
+		gridCtx.fillRect(Math.round(x), 0, thick, bh);
+	}
+	for (let y = y0 + Math.ceil((0 - y0) / step) * step; y < bh; y += step) {
+		gridCtx.fillRect(0, Math.round(y), bw, thick);
+	}
+}
+new ResizeObserver(drawGrid).observe(chart);
+window.addEventListener("resize", drawGrid);   // also fires when the browser zoom (dpr) changes
+
 function applyView() {
 	chart.style.setProperty("--s", scale);
 	chart.style.setProperty("--tx", tx + "px");
 	chart.style.setProperty("--ty", ty + "px");
+	drawGrid();
 
 	document.getElementById("zoom-level").textContent = Math.round(scale * 100) + "%";
 	updateCursorReadout();
@@ -937,6 +979,7 @@ function applyGridDisplay() {
 	const on = cssVar("--grid-display") === "true";
 	document.getElementById("grid").classList.toggle("hidden", !on);
 	document.getElementById("zero-line").classList.toggle("hidden", !on);
+	drawGrid();   // draws it again after it was hidden
 }
 makeSwitch(document.getElementById("switch-grid"), cssVar("--grid-display") === "true", on => {
 	document.documentElement.style.setProperty("--grid-display", on ? "true" : "false");
