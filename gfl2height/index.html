@@ -207,6 +207,15 @@ html, body {
 }
 #ui input[type="checkbox"] { accent-color: var(--ui-accent); cursor: pointer; }
 
+/* phones: tighter bar so it fits in two rows
+   (row 1: Customize + Rotate, row 2: Spacing + readouts) */
+@media (max-width: 600px) {
+	#ui { gap: 8px; padding: 8px 10px; }
+	#ui .spacing input[type="range"] { width: 90px; }
+	#ui .group.right { gap: 8px; }
+	#ui #cursor-cm { min-width: 7ch; }
+}
+
 /* ---------- image list: collapsible panel on the left ---------- */
 #sidebar {
 	position: fixed;
