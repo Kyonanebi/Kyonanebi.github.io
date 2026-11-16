@@ -122,8 +122,18 @@ html, body {
 	margin: 0 -8px;
 }
 #ui .dropdown .panel .option:hover { background: #2e3140; }
+/* category headings inside the Customize panel */
+#ui .dropdown .panel .category {
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: .08em;
+	text-transform: uppercase;
+	color: rgba(232, 234, 240, .55);
+	margin-bottom: -2px;
+}
+#ui .dropdown .panel .category:not(:first-child) { margin-top: 6px; }
 #ui .dropdown .panel .option.active { background: rgba(255, 255, 255, .12); }
-/* two-sided switch:  LEFT | label | RIGHT   (the active side is highlighted) */
+/* two-sided switch:  label | LEFT | RIGHT   (the active side is highlighted) */
 #ui .switch {
 	position: relative;
 	display: flex;
@@ -169,7 +179,10 @@ html, body {
 	padding: 3px 12px;
 }
 #ui .switch .side {
-	min-width: 2.4em;
+	flex: none;
+	width: 5em;           /* same size on every switch (fits "Height"), so the columns line up */
+	padding-inline: 0;
+	box-sizing: border-box;
 	border-radius: 3px;
 	color: #6f7686;
 	font-weight: 600;
@@ -177,7 +190,8 @@ html, body {
 	transition: color .2s ease;
 }
 #ui .switch .side:hover { color: #c5cad6; }
-#ui .switch .mid { flex: 1; padding: 3px 14px; color: #e8eaf0; }
+/* the label is shown first:  label | LEFT | RIGHT  (HTML order stays left, mid, right) */
+#ui .switch .mid { order: -1; flex: 1; justify-content: flex-start; padding: 3px 14px 3px 8px; color: #e8eaf0; }
 #ui .switch:not(.on) .left,
 #ui .switch.on .right,
 #ui .switch:not(.on) .left:hover,
@@ -432,21 +446,21 @@ html, body {
 <body>
 
 <div id="ui">
-	<div class="group">
-		<span>Sort by</span>
-		<div class="dropdown" id="sort-menu">
-			<button class="dropdown-btn" id="sort-btn" type="button"></button>
-			<div class="panel">
-				<button class="option" type="button" data-value="height">Height</button>
-				<button class="option" type="button" data-value="name">Name</button>
-			</div>
-		</div>
-		<button id="sort-reverse" type="button"></button>
-	</div>
-
 	<div class="dropdown" id="customize">
 		<button class="dropdown-btn" id="customize-btn" type="button">Customize ▾</button>
 		<div class="panel">
+			<div class="category">Sorting</div>
+			<div class="switch" id="switch-sort-by" role="switch" tabindex="0" aria-checked="false">
+				<span class="side left">Height</span>
+				<span class="mid">Sort by</span>
+				<span class="side right">Name</span>
+			</div>
+			<div class="switch" id="switch-sort-order" role="switch" tabindex="0" aria-checked="false">
+				<span class="side left">↓</span>
+				<span class="mid">Order</span>
+				<span class="side right">↑</span>
+			</div>
+			<div class="category">Options</div>
 			<div class="switch dim-left" id="switch-offset" role="switch" tabindex="0" aria-checked="false">
 				<span class="side left">OFF</span>
 				<span class="mid">Shoe offset</span>
@@ -457,19 +471,25 @@ html, body {
 				<span class="mid">CN server dolls</span>
 				<span class="side right">CH</span>
 			</div>
+			<div class="switch" id="switch-units" role="switch" tabindex="0" aria-checked="false">
+				<span class="side left">CM</span>
+				<span class="mid">Units</span>
+				<span class="side right">FT/IN</span>
+			</div>
+			<div class="category">Display</div>
 			<div class="switch dim-left" id="switch-grid" role="switch" tabindex="0" aria-checked="false">
 				<span class="side left">OFF</span>
-				<span class="mid">Display grid</span>
+				<span class="mid">Grid</span>
 				<span class="side right">ON</span>
 			</div>
 			<div class="switch dim-left" id="switch-height" role="switch" tabindex="0" aria-checked="false">
 				<span class="side left">OFF</span>
-				<span class="mid">Display height</span>
+				<span class="mid">Height information</span>
 				<span class="side right">ON</span>
 			</div>
 			<div class="switch dim-left" id="switch-details" role="switch" tabindex="0" aria-checked="false">
 				<span class="side left">OFF</span>
-				<span class="mid">Display details</span>
+				<span class="mid">Name / Skin</span>
 				<span class="side right">ON</span>
 			</div>
 		</div>
@@ -640,6 +660,24 @@ function currentHeight(img) {
 	return cssVar("--offset-display") === "true" ? img.height - img.offset : img.height;
 }
 
+// Units switch: only changes how lengths are written (orange + blue labels, cursor readout).
+// All positions and calculations stay in cm.
+let useImperial = false;   // default: cm
+
+// cm -> "5′ 7.3″" (feet + inches, 1 decimal on the inches)
+function formatFeetInches(cm) {
+	const sign = cm < 0 ? "-" : "";
+	let totalIn = Math.round(Math.abs(cm) / 2.54 * 10) / 10;   // round first, so 11.96″ doesn't show as 12.0″
+	const ft = Math.floor(totalIn / 12);
+	const inch = totalIn - ft * 12;
+	return sign + ft + "′ " + inch.toFixed(1) + "″";
+}
+
+// the text shown for a length in cm, in the unit picked by the Units switch
+function formatLength(cm) {
+	return useImperial ? formatFeetInches(cm) : cm.toFixed(1) + " " + cssVar("--format");
+}
+
 // height info layer: an orange line + label at each image's height.
 // Rebuilt together with the images, so sorting/offset changes update it too.
 function renderHeights(placed) {
@@ -669,7 +707,7 @@ function renderHeights(placed) {
 
 		const label = document.createElement("div");
 		label.className = "label";
-		label.textContent = cm.toFixed(1) + " " + format;
+		label.textContent = formatLength(cm);
 
 		hline.append(line, label);
 		layer.appendChild(hline);
@@ -713,7 +751,7 @@ function renderExtras(placed) {
 
 		const label = document.createElement("div");
 		label.className = "label";
-		label.textContent = cm.toFixed(1) + " " + format;
+		label.textContent = formatLength(cm);
 
 		hline.append(line, tick, label);
 		layer.appendChild(hline);
@@ -853,7 +891,7 @@ function updateCursorReadout() {
 	const worldY = (mouse.y - ty) / scale;
 	// only shown above the green line; below it is capped to 0
 	const cm = Math.max(0, (parseFloat(cssVar("--zero-y")) - worldY) / parseFloat(cssVar("--px-per-cm")));
-	el.textContent = cm.toFixed(1) + " " + cssVar("--format");
+	el.textContent = formatLength(cm);
 }
 
 // mouse wheel (also trackpad pinch, which arrives as ctrl + wheel)
@@ -933,45 +971,16 @@ chart.addEventListener("selectstart", e => e.preventDefault());
 document.getElementById("zoom-reset").addEventListener("click", resetView);
 
 // ---------- UI: sorting ----------
-const sortBtn     = document.getElementById("sort-btn");
-const sortOptions = document.querySelectorAll("#sort-menu .option");
-const sortReverse = document.getElementById("sort-reverse");
+// the two switches (in Customize) are wired up below, after makeSwitch
 let sortBy = "height";       // default sort option
 let sortDescending = true;   // default order
-
-function updateReverseButton() {
-	sortReverse.textContent = sortDescending ? "↓" : "↑";
-}
-
-// the dropdown button always shows the current sort option
-function updateSortButton() {
-	for (const opt of sortOptions) {
-		const active = opt.dataset.value === sortBy;
-		opt.classList.toggle("active", active);
-		if (active) sortBtn.textContent = opt.textContent + " ▾";
-	}
-}
 
 function applySort() {
 	sortImages(sortBy, sortDescending);
 	renderImages();
 }
 
-for (const opt of sortOptions) {
-	opt.addEventListener("click", () => {
-		sortBy = opt.dataset.value;
-		updateSortButton();
-		opt.closest(".dropdown").classList.remove("open");
-		applySort();
-	});
-}
-sortReverse.addEventListener("click", () => {
-	sortDescending = !sortDescending;
-	updateReverseButton();
-	applySort();
-});
-
-// ---------- UI: dropdowns (sort + customize) ----------
+// ---------- UI: dropdowns (customize) ----------
 const dropdowns    = document.querySelectorAll("#ui .dropdown");
 
 for (const dd of dropdowns) {
@@ -987,8 +996,8 @@ document.addEventListener("pointerdown", e => {
 });
 
 // ---------- UI: two-sided switches (in Customize) ----------
-// el = the .switch element. A click on the left / right side picks that side, a click on
-// the label in the middle flips it. onChange(isRight) is called when the side changes.
+// el = the .switch element. A click anywhere on it flips it.
+// onChange(isRight) is called when the side changes.
 function makeSwitch(el, isRight, onChange) {
 	let right = false;
 
@@ -1019,21 +1028,35 @@ function makeSwitch(el, isRight, onChange) {
 		set(value);
 		onChange(right);
 	}
-	el.addEventListener("click", e => {
-		if (e.target.closest(".left"))       pick(false);
-		else if (e.target.closest(".right")) pick(true);
-		else                                 pick(!right);
-	});
+	el.addEventListener("click", () => pick(!right));
 	el.addEventListener("keydown", e => {
 		if (e.key === " " || e.key === "Enter") { e.preventDefault(); pick(!right); }
 	});
 	set(isRight);   // initial state, no onChange
 }
 
+// Height | Sort by | Name
+makeSwitch(document.getElementById("switch-sort-by"), sortBy === "name", right => {
+	sortBy = right ? "name" : "height";
+	applySort();
+});
+// ↓ | Order | ↑   (↓ = descending)
+makeSwitch(document.getElementById("switch-sort-order"), !sortDescending, right => {
+	sortDescending = !right;
+	applySort();
+});
+
 // OFF | Shoe offset | ON  -> --offset-display; heights change, so re-sort and redraw
 makeSwitch(document.getElementById("switch-offset"), cssVar("--offset-display") === "true", on => {
 	document.documentElement.style.setProperty("--offset-display", on ? "true" : "false");
 	applySort();
+});
+
+// CM | Units | FT/IN  -> only the text of the orange height labels; redraw to rewrite them
+makeSwitch(document.getElementById("switch-units"), useImperial, imperial => {
+	useImperial = imperial;
+	renderImages();
+	updateCursorReadout();
 });
 
 // OFF | Display grid | ON  -> --grid-display: hides the grid and the green 0cm line
@@ -1237,8 +1260,6 @@ new ResizeObserver(() => {
 buildList();
 syncList();
 createElements();
-updateSortButton();
-updateReverseButton();
 applySort();
 applyView();
 </script>
