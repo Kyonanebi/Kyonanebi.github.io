@@ -64,25 +64,69 @@ html, body {
 	align-items: center;
 	gap: 8px 12px;
 	padding: 8px 12px;
-	background: rgba(20, 21, 26, .9);
-	border-bottom: 1px solid rgba(255, 255, 255, .15);
-	font: 14px sans-serif;
-	color: #eee;
+	background: linear-gradient(180deg, rgba(28, 30, 38, .96), rgba(20, 21, 26, .94));
+	border-bottom: 1px solid rgba(255, 255, 255, .08);
+	box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+	font: 13px "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+	color: #e8eaf0;
+}
+/* thin accent glow along the bottom edge */
+#ui::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: -1px;
+	height: 1px;
+	background: linear-gradient(90deg, transparent, rgba(106, 176, 255, .55) 20%, rgba(106, 176, 255, .55) 80%, transparent);
+	pointer-events: none;
 }
 #ui select,
 #ui button {
 	font: inherit;
-	color: inherit;
-	background: #23252d;
-	border: 1px solid rgba(255, 255, 255, .25);
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: .08em;
+	text-transform: uppercase;
+	color: #c5cad6;
+	background: linear-gradient(180deg, #23262f, #1b1d24);
+	border: 1px solid rgba(255, 255, 255, .12);
 	border-radius: 4px;
-	padding: 4px 8px;
+	padding: 0 12px;
+	height: 30px;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+	transition: color .15s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease;
 }
-#ui button { cursor: pointer; }
-#ui button:hover { background: #2e3140; }
+#ui button { cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+#ui button:hover {
+	color: #fff;
+	border-color: rgba(106, 176, 255, .5);
+	background: linear-gradient(180deg, #2a2e3a, #20232c);
+}
+#ui button:active { transform: translateY(1px); }
+#ui button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+#ui button svg { width: 14px; height: 14px; flex: none; }
+
+/* small uppercase captions ("Spacing", "Rotate") */
+#ui .caption {
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: .1em;
+	text-transform: uppercase;
+	color: rgba(232, 234, 240, .55);
+}
+
+/* readouts: cursor height and zoom, shown as small chips */
 #ui .readout {
 	text-align: right;
 	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+	letter-spacing: .04em;
+	color: #a3a9b8;
+	padding: 5px 9px;
+	border-radius: 4px;
+	background: #181a20;
+	border: 1px solid rgba(255, 255, 255, .08);
 }
 #ui #cursor-cm { min-width: 9ch; }
 #ui #zoom-level { min-width: 4ch; }
@@ -93,26 +137,65 @@ html, body {
 #ui .spacing {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
 	white-space: nowrap;
 }
-#ui .group.right { margin-left: auto; gap: 12px; }   /* readouts stay at the right edge */
+#ui .group.right { margin-left: auto; gap: 8px; }   /* readouts stay at the right edge */
+
+/* Rotate: one segmented control   [ ‹ | ROTATE | › ] */
+#ui .rotate {
+	gap: 0;
+	padding: 2px;
+	height: 30px;
+	box-sizing: border-box;
+	background: #181a20;
+	border: 1px solid rgba(255, 255, 255, .12);
+	border-radius: 4px;
+}
+#ui .rotate button {
+	height: 24px;
+	width: 28px;
+	padding: 0;
+	justify-content: center;
+	border-color: transparent;
+	background: transparent;
+	box-shadow: none;
+	border-radius: 3px;
+}
+#ui .rotate button:hover {
+	color: #0b1a2e;
+	border-color: transparent;
+	background: linear-gradient(180deg, #8cc4ff, var(--ui-accent));
+}
+#ui .rotate .caption { padding: 0 10px; }
 
 /* "Customize" dropdown */
 #ui .dropdown { position: relative; }
+#ui .dropdown-btn .chev { transition: transform .2s ease; opacity: .7; }
+#ui .dropdown.open .dropdown-btn {
+	color: #fff;
+	border-color: var(--ui-accent);
+	box-shadow: 0 0 0 3px rgba(106, 176, 255, .18), inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+#ui .dropdown.open .dropdown-btn .chev { transform: rotate(180deg); opacity: 1; }
+#ui .dropdown-btn .icon { color: var(--ui-accent); }
 #ui .dropdown .panel {
 	display: none;
 	position: absolute;
-	top: calc(100% + 6px);
+	top: calc(100% + 8px);
 	left: 0;
 	min-width: 160px;
-	padding: 10px 12px;
-	background: #23252d;
-	border: 1px solid rgba(255, 255, 255, .25);
-	border-radius: 4px;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, .4);
+	padding: 12px 14px;
+	background: linear-gradient(180deg, #23262f, #1d1f27);
+	border: 1px solid rgba(255, 255, 255, .12);
+	border-radius: 6px;
+	box-shadow: 0 12px 32px rgba(0, 0, 0, .55), 0 0 0 1px rgba(0, 0, 0, .3);
 }
-#ui .dropdown.open .panel { display: flex; flex-direction: column; gap: 8px; }
+#ui .dropdown.open .panel { display: flex; flex-direction: column; gap: 8px; animation: panel-in .16s ease-out; }
+@keyframes panel-in {
+	from { opacity: 0; transform: translateY(-4px); }
+	to   { opacity: 1; transform: none; }
+}
 #ui .dropdown .panel .option {
 	border: none;
 	background: transparent;
@@ -191,7 +274,7 @@ html, body {
 }
 #ui .switch .side:hover { color: #c5cad6; }
 /* the label is shown first:  label | LEFT | RIGHT  (HTML order stays left, mid, right) */
-#ui .switch .mid { order: -1; flex: 1; justify-content: flex-start; padding: 3px 14px 3px 8px; color: #e8eaf0; }
+#ui .switch .mid { order: -1; flex: 1; justify-content: flex-start; padding: 3px 14px 3px 8px; color: #e8eaf0; text-transform: uppercase; letter-spacing: .06em; font-size: 12px; font-weight: 600; }
 #ui .switch:not(.on) .left,
 #ui .switch.on .right,
 #ui .switch:not(.on) .left:hover,
@@ -199,12 +282,53 @@ html, body {
 #ui .switch.dim-left:not(.on) .left,
 #ui .switch.dim-left:not(.on) .left:hover { color: #e8eaf0; }
 
-/* "Spacing" slider */
+/* "Spacing" slider: thin track, filled in accent up to the thumb (--fill set by JS) */
 #ui .spacing input[type="range"] {
+	-webkit-appearance: none;
+	appearance: none;
 	width: 140px;
-	accent-color: var(--ui-accent);
+	height: 18px;
+	margin: 0;
+	background: transparent;
 	cursor: pointer;
 }
+#ui .spacing input[type="range"]::-webkit-slider-runnable-track {
+	height: 4px;
+	border-radius: 2px;
+	background: linear-gradient(90deg, var(--ui-accent) var(--fill, 0%), #2c2f3a var(--fill, 0%));
+}
+#ui .spacing input[type="range"]::-moz-range-track {
+	height: 4px;
+	border-radius: 2px;
+	background: #2c2f3a;
+}
+#ui .spacing input[type="range"]::-moz-range-progress {
+	height: 4px;
+	border-radius: 2px;
+	background: var(--ui-accent);
+}
+#ui .spacing input[type="range"]::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	width: 14px;
+	height: 14px;
+	margin-top: -5px;
+	border-radius: 50%;
+	background: linear-gradient(180deg, #b5d9ff, var(--ui-accent));
+	border: 2px solid #14151a;
+	box-shadow: 0 0 0 1px rgba(106, 176, 255, .6);
+	transition: box-shadow .15s ease;
+}
+#ui .spacing input[type="range"]::-moz-range-thumb {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background: linear-gradient(180deg, #b5d9ff, var(--ui-accent));
+	border: 2px solid #14151a;
+	box-shadow: 0 0 0 1px rgba(106, 176, 255, .6);
+}
+#ui .spacing input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(106, 176, 255, .25); }
+#ui .spacing input[type="range"]:hover::-moz-range-thumb     { box-shadow: 0 0 0 4px rgba(106, 176, 255, .25); }
+#ui .spacing input[type="range"]:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; border-radius: 4px; }
 #ui input[type="checkbox"] { accent-color: var(--ui-accent); cursor: pointer; }
 
 /* phones: tighter bar so it fits in two rows
@@ -261,7 +385,29 @@ html, body {
 #sidebar button:hover { background: #2e3140; }
 #sidebar input[type="search"] { width: 100%; box-sizing: border-box; user-select: text; -webkit-user-select: text; }
 #sidebar .sb-buttons { display: flex; flex-wrap: nowrap; gap: 6px; }
-#sidebar .sb-buttons button { white-space: nowrap; }
+/* Show All / Show Default / Hide All: same look as the top bar buttons */
+#sidebar .sb-buttons button {
+	white-space: nowrap;
+	font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: .08em;
+	text-transform: uppercase;
+	color: #c5cad6;
+	background: linear-gradient(180deg, #23262f, #1b1d24);
+	border: 1px solid rgba(255, 255, 255, .12);
+	padding: 0 12px;
+	height: 30px;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+	transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+#sidebar .sb-buttons button:hover {
+	color: #fff;
+	border-color: rgba(106, 176, 255, .5);
+	background: linear-gradient(180deg, #2a2e3a, #20232c);
+}
+#sidebar .sb-buttons button:active { transform: translateY(1px); }
+#sidebar .sb-buttons button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 
 /* width 0 + min-width 100%: the list fills the panel but never makes it wider */
 #img-list { flex: 1; width: 0; min-width: 100%; overflow-y: auto; overflow-x: hidden; margin: 0 -4px; padding: 0 4px; box-sizing: content-box; }
@@ -456,7 +602,15 @@ html, body {
 
 <div id="ui">
 	<div class="dropdown" id="customize">
-		<button class="dropdown-btn" id="customize-btn" type="button">Customize ▾</button>
+		<button class="dropdown-btn" id="customize-btn" type="button">
+			<svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+				<path d="M2 4h7M13 4h1M2 12h1M7 12h7"/><circle cx="11" cy="4" r="2"/><circle cx="5" cy="12" r="2"/>
+			</svg>
+			<span>Customize</span>
+			<svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<path d="M4 6l4 4 4-4"/>
+			</svg>
+		</button>
 		<div class="panel">
 			<div class="category">Sorting</div>
 			<div class="switch" id="switch-sort-by" role="switch" tabindex="0" aria-checked="false">
@@ -505,13 +659,17 @@ html, body {
 	</div>
 
 	<div class="rotate">
-		<button id="rotate-prev" type="button">&lt;</button>
-		<span>Rotate</span>
-		<button id="rotate-next" type="button">&gt;</button>
+		<button id="rotate-prev" type="button" aria-label="Rotate back">
+			<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>
+		</button>
+		<span class="caption">Rotate</span>
+		<button id="rotate-next" type="button" aria-label="Rotate forward">
+			<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+		</button>
 	</div>
 
 	<label class="spacing">
-		<span>Spacing</span>
+		<span class="caption">Spacing</span>
 		<input type="range" id="spacing-slider" step="1">
 	</label>
 
@@ -1125,7 +1283,15 @@ spacingSlider.min   = parseFloat(cssVar("--spacing-global-min"));
 spacingSlider.max   = parseFloat(cssVar("--spacing-global-max"));
 spacingSlider.value = parseFloat(cssVar("--spacing-global"));
 
+// fills the track up to the thumb (Chrome/Safari; Firefox uses ::-moz-range-progress)
+function updateSliderFill() {
+	const min = +spacingSlider.min, max = +spacingSlider.max;
+	spacingSlider.style.setProperty("--fill", ((spacingSlider.value - min) / (max - min) * 100) + "%");
+}
+updateSliderFill();
+
 spacingSlider.addEventListener("input", () => {
+	updateSliderFill();
 	document.documentElement.style.setProperty("--spacing-global", spacingSlider.value + "px");
 	renderImages();   // re-places the images and the height lines with the new spacing
 });
