@@ -170,7 +170,7 @@ html, body {
 #ui .rotate .caption { padding: 0 10px; }
 
 /* "Customize" dropdown */
-#ui .dropdown { position: relative; }
+#ui .dropdown { position: relative; z-index: 1; }   /* above the bar's glow line */
 #ui .dropdown-btn .chev { transition: transform .2s ease; opacity: .7; }
 #ui .dropdown.open .dropdown-btn {
 	color: #fff;
@@ -186,7 +186,7 @@ html, body {
 	left: 0;
 	min-width: 160px;
 	padding: 12px 14px;
-	background: linear-gradient(180deg, #23262f, #1d1f27);
+	background: rgba(20, 21, 26, .92);   /* same as the left panel */
 	border: 1px solid rgba(255, 255, 255, .12);
 	border-radius: 6px;
 	box-shadow: 0 12px 32px rgba(0, 0, 0, .55), 0 0 0 1px rgba(0, 0, 0, .3);
