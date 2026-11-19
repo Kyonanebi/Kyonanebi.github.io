@@ -410,7 +410,19 @@ html, body {
 #sidebar .sb-buttons button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 
 /* width 0 + min-width 100%: the list fills the panel but never makes it wider */
-#img-list { flex: 1; width: 0; min-width: 100%; overflow-y: auto; overflow-x: hidden; margin: 0 -4px; padding: 0 4px; box-sizing: content-box; }
+/* right padding keeps the counts clear of overlay scrollbars; the extra width spills into the sidebar's own padding */
+#img-list {
+	flex: 1; width: 0; min-width: 100%; overflow-y: auto; overflow-x: hidden;
+	margin: 0 -10px 0 -4px; padding: 0 10px 0 4px; box-sizing: content-box;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(255, 255, 255, .22) transparent;
+}
+/* older WebKit/Chromium that ignore scrollbar-width/-color */
+#img-list::-webkit-scrollbar { width: 8px; }
+#img-list::-webkit-scrollbar-track { background: transparent; }
+#img-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .22); border-radius: 4px; }
+#img-list::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, .4); }
+#img-list::-webkit-scrollbar-button { display: none; }
 #img-list .grp.filtered { display: none; }
 #img-list label {
 	display: flex;
@@ -709,23 +721,32 @@ function cssVar(name) {
 
 // ---------- raw image data ----------
 const rawImages = [
-	{ src: "img/Igla Default",                        name: "Igla",        type: "Default",                   offset: 6.5,   height: 181.33, extra: 0,      spacing: "0px",  version: "CH" },
-	{ src: "img/Igla Ardent Rose",                    name: "Igla",        type: "Ardent Rose",               offset: 10.44, height: 185.27, extra: 0,      spacing: "0px",  version: "CH" },
-	{ src: "img/Igla Dorm",                           name: "Igla",        type: "Dorm",                      offset: 6.5,   height: 181.33, extra: 0,      spacing: "0px",  version: "CH" },
   //{ src: "img/Calibration",                         name: "Calibration", type: "Calibration",               offset: 0,     height: 200,    extra: 0,      spacing: "0px",  version: "CH" },
+
+    { src: "img/Agent Default",                       name: "Agent",       type: "Default",                   offset: 8.15,  height: 161.56, extra: 0,      spacing: "0px",  version: "CH" },
+	{ src: "img/Agent Dorm",                          name: "Agent",       type: "Dorm",                      offset: 5.4,   height: 158.81, extra: 0,      spacing: "0px",  version: "CH" },
+    { src: "img/Agent Violet Nightwitch",             name: "Agent",       type: "Violet Nightwitch",         offset: 7.13,  height: 161.33, extra: 0,      spacing: "0px",  version: "CH" },
+
+	{ src: "img/Alva Default",                        name: "Alva",        type: "Default",                   offset: 4.46,  height: 158.17, extra: 0,      spacing: "0px",  version: "GL" },
+	{ src: "img/Alva Dorm",                           name: "Alva",        type: "Dorm",                      offset: 5.4,   height: 159.11, extra: 0,      spacing: "0px",  version: "GL" },
+	{ src: "img/Alva Antje",                          name: "Alva",        type: "Antje",                     offset: 1.5,   height: 154.8,  extra: 0,      spacing: "0px",  version: "GL" },
+	{ src: "img/Alva Wisteria Tidings",               name: "Alva",        type: "Wisteria Tidings",          offset: 3.13,  height: 156.84, extra: 0,      spacing: "0px",  version: "GL" },
+
+    { src: "img/Andoris Default",                     name: "Andoris",     type: "Default",                   offset: 5.4,   height: 158.7,  extra: 0,      spacing: "0px",  version: "GL" },
+	{ src: "img/Andoris Dorm",                        name: "Andoris",     type: "Dorm",                      offset: 5.4,   height: 158.7,  extra: 0,      spacing: "0px",  version: "GL" },
+	{ src: "img/Andoris Midnight Whisper",            name: "Andoris",     type: "Midnight Whisper",          offset: 5.4,   height: 158.7,  extra: 0,      spacing: "0px",  version: "GL" },
+
 	{ src: "img/Colphne Default",                     name: "Colphne",     type: "Default",                   offset: 4.4,   height: 140.57, extra: 0,      spacing: "0px",  version: "GL" },
 	{ src: "img/Colphne Dorm",                        name: "Colphne",     type: "Dorm",                      offset: 4.4,   height: 140.57, extra: 0,      spacing: "0px",  version: "GL" },
 	{ src: "img/Colphne's Training Outfit",           name: "Colphne",     type: "Colphne's Training Outfit", offset: 4.4,   height: 140.57, extra: 0,      spacing: "0px",  version: "GL" },
 	{ src: "img/Colphne Silent Heart",                name: "Colphne",     type: "Silent Heart",              offset: 4.4,   height: 140.63, extra: 0,      spacing: "0px",  version: "GL" },
 	{ src: "img/Colphne Doppelganger Default",        name: "Colphne",     type: "Doppelganger Default",      offset: 4.4,   height: 140.57, extra: 0,      spacing: "0px",  version: "CH" },
-	{ src: "img/Colphne Doppelganger Dorm",           name: "Colphne",     type: "Doppelganger Dorm",         offset: 4.4,   height: 140.57, extra: 0,      spacing: "0px",  version: "CH" },
-	{ src: "img/Voymastina Default",                  name: "Voymastina",  type: "Default",                   offset: 6.5,   height: 181.05, extra: 0,      spacing: "0px",  version: "GL" },
-	{ src: "img/Voymastina Dorm",                     name: "Voymastina",  type: "Dorm",                      offset: 6.5,   height: 181.05, extra: 0,      spacing: "0px",  version: "GL" },
-	{ src: "img/Voymastina Erwin",                    name: "Voymastina",  type: "Erwin",                     offset: 2.75,  height: 177.29, extra: 0,      spacing: "0px",  version: "GL" }, 
-	{ src: "img/Voymastina B-ROBO Voymawari",         name: "Voymastina",  type: "B-ROBO Voymawari",          offset: 2.6,   height: 177.15, extra: 0,      spacing: "0px",  version: "GL" }, 
+	{ src: "img/Colphne Doppelganger Dorm",           name: "Colphne",     type: "Doppelganger Dorm",         offset: 4.4,   height: 140.57, extra: 0,      spacing: "0px",  version: "CH" }, 
+
 	{ src: "img/Faelynn Default",                     name: "Faelynn",     type: "Default",                   offset: 10.26, height: 145.45, extra: 155.39, spacing: "0px",  version: "GL" }, 
 	{ src: "img/Faelynn Dorm",                        name: "Faelynn",     type: "Dorm",                      offset: 4.7,   height: 139.85, extra: 149.79, spacing: "0px",  version: "GL" }, 
 	{ src: "img/Faelynn Sunkissed Shimmer",           name: "Faelynn",     type: "Sunkissed Shimmer",         offset: 0,     height: 135.15, extra: 145.09, spacing: "0px",  version: "GL" }, 
+
 	{ src: "img/Klukai Default",                      name: "Klukai",      type: "Default",                   offset: 5.3,   height: 150.93, extra: 0,      spacing: "0px",  version: "GL" }, 
 	{ src: "img/Klukai Dorm",                         name: "Klukai",      type: "Dorm",                      offset: 5.3,   height: 150.93, extra: 0,      spacing: "0px",  version: "GL" }, 
 	{ src: "img/Klukai Astral Luminous",              name: "Klukai",      type: "Astral Luminous",           offset: 5.3,   height: 150.71, extra: 0,      spacing: "0px",  version: "GL" }, 
@@ -733,6 +754,15 @@ const rawImages = [
 	{ src: "img/Klukai Cerulean Breaker",             name: "Klukai",      type: "Cerulean Breaker",          offset: 2.65,  height: 148.78, extra: 0,      spacing: "0px",  version: "GL" }, 
 	{ src: "img/Klukai Indigo Oath",                  name: "Klukai",      type: "Indigo Oath",               offset: 5.3,   height: 151.35, extra: 0,      spacing: "0px",  version: "GL" }, 
 	{ src: "img/Klukai Immaculate Service",           name: "Klukai",      type: "Immaculate Service",        offset: 5.3,   height: 151.15, extra: 0,      spacing: "0px",  version: "GL" }, 
+
+	{ src: "img/Igla Default",                        name: "Igla",        type: "Default",                   offset: 6.5,   height: 181.33, extra: 0,      spacing: "0px",  version: "CH" },
+	{ src: "img/Igla Ardent Rose",                    name: "Igla",        type: "Ardent Rose",               offset: 10.44, height: 185.27, extra: 0,      spacing: "0px",  version: "CH" },
+	{ src: "img/Igla Dorm",                           name: "Igla",        type: "Dorm",                      offset: 6.5,   height: 181.33, extra: 0,      spacing: "0px",  version: "CH" },
+
+	{ src: "img/Voymastina Default",                  name: "Voymastina",  type: "Default",                   offset: 6.5,   height: 181.05, extra: 0,      spacing: "0px",  version: "GL" },
+	{ src: "img/Voymastina Dorm",                     name: "Voymastina",  type: "Dorm",                      offset: 6.5,   height: 181.05, extra: 0,      spacing: "0px",  version: "GL" },
+	{ src: "img/Voymastina Erwin",                    name: "Voymastina",  type: "Erwin",                     offset: 2.75,  height: 177.29, extra: 0,      spacing: "0px",  version: "GL" }, 
+	{ src: "img/Voymastina B-ROBO Voymawari",         name: "Voymastina",  type: "B-ROBO Voymawari",          offset: 2.6,   height: 177.15, extra: 0,      spacing: "0px",  version: "GL" },
 ];
 
 // which images belong to the current --version:
@@ -801,8 +831,8 @@ function renderImages() {
 	const pxPerCm    = parseFloat(cssVar("--px-per-cm"));
 	const useOffset  = cssVar("--offset-display") === "true";
 
-	const placed = [];   // visible images with their x position, for the height layer
-	let x = 0;
+	const placed = [];   // visible images with their x position (left edge), for the height layer
+	let center = null;   // spacing is measured center-to-center, so image widths don't matter
 	for (const img of images) {
 		const el = elements.get(img);
 		imagesLayer.appendChild(el);   // moves it, keeps stacking order = sort order
@@ -811,10 +841,14 @@ function renderImages() {
 
 		// with offsets on, the image is moved down by img.offset (cm -> px)
 		el.style.setProperty("--img-offset", useOffset ? img.offset * pxPerCm + "px" : "0px");
+		// width is set in onload; 0 until then (renderImages runs again once it loads)
+		const w = parseFloat(el.style.width) || 0;
+		if (center === null) center = w / 2;   // first image: left edge stays at 0, as before
+		const x = center - w / 2;   // left edge, so the image is centered on `center`
 		el.style.left = x + "px";
 		placed.push({ img, el, x });
-		// distance to the next image, never smaller than --spacing-img-min
-		x += Math.max(spacingMin, spacingG + parseFloat(img.spacing));
+		// center-to-center distance to the next image, never smaller than --spacing-img-min
+		center += Math.max(spacingMin, spacingG + parseFloat(img.spacing));
 	}
 
 	renderHeights(placed);
@@ -831,13 +865,13 @@ function currentHeight(img) {
 // All positions and calculations stay in cm.
 let useImperial = false;   // default: cm
 
-// cm -> "5′ 7.3″" (feet + inches, 1 decimal on the inches)
+// cm -> "5′ 7″" (feet + whole inches)
 function formatFeetInches(cm) {
 	const sign = cm < 0 ? "-" : "";
-	let totalIn = Math.round(Math.abs(cm) / 2.54 * 10) / 10;   // round first, so 11.96″ doesn't show as 12.0″
+	const totalIn = Math.round(Math.abs(cm) / 2.54);   // round first, so 11.6″ shows as 1′ 0″, not 0′ 12″
 	const ft = Math.floor(totalIn / 12);
 	const inch = totalIn - ft * 12;
-	return sign + ft + "′ " + inch.toFixed(1) + "″";
+	return sign + ft + "′ " + inch + "″";
 }
 
 // the text shown for a length in cm, in the unit picked by the Units switch
